@@ -130,7 +130,7 @@ Confidro removes these barriers by making payroll **confidential by design**.
 
 | Component | Technology | Purpose |
 |---|---|---|
-| **Blockchain** | Arbitrum Sepolia (testnet) | Low-gas FHE-enabled L2 |
+| **Blockchain** | Base Sepolia (testnet) | Low-gas FHE-enabled L2 |
 | **Encryption** | Fhenix CoFHE + FHE.sol | Fully Homomorphic Encryption |
 | **Smart Contracts** | Solidity ^0.8.24 | FHE-enabled contract logic |
 | **Client SDK** | @cofhe/sdk | Client-side encryption/decryption |
@@ -143,8 +143,8 @@ Confidro removes these barriers by making payroll **confidential by design**.
 
 ### Supported Networks
 
-- **Arbitrum Sepolia** — Primary testnet (lowest gas costs)[reference:6]
-- **Base Sepolia** — Secondary testnet[reference:7]
+- **Base Sepolia** — Primary testnet (lowest gas costs)[reference:6]
+- **Arbitrum Sepolia** — Secondary testnet[reference:7]
 - **Ethereum Sepolia** — Ethereum testnet[reference:8]
 
 ## Getting Started
@@ -174,7 +174,7 @@ cp .env.example .env
 ```bash
 # .env.example
 PRIVATE_KEY=your_private_key_here
-ARBITRUM_SEPOLIA_RPC=https://sepolia-rollup.arbitrum.io/rpc
+BASE_SEPOLIA_RPC=https://sepolia-rollup.base.io/rpc
 COORDINATOR_URL=https://coordinator.reineira.io
 ```
 
@@ -204,11 +204,11 @@ pnpm test:coverage
 
 ### Deployment
 ```bash
-# Deploy to Arbitrum Sepolia
-pnpm deploy --network arbitrumSepolia
+# Deploy to Base Sepolia
+pnpm deploy --network baseSepolia
 
 # Verify on Arbiscan
-pnpm verify --network arbitrumSepolia <CONTRACT_ADDRESS>
+pnpm verify --network baseSepolia <CONTRACT_ADDRESS>
 
 # Deploy using reineira-code
 npm run deploy
@@ -303,7 +303,7 @@ import { ReineiraSDK } from '@reineira-os/sdk';
 const sdk = ReineiraSDK.create({
   network: 'testnet',
   privateKey: process.env.PRIVATE_KEY,
-  rpcUrl: process.env.ARBITRUM_SEPOLIA_RPC,
+  rpcUrl: process.env.BASE_SEPOLIA_RPC,
   onFHEInit: (status) => console.log('FHE:', status)
 });
 
@@ -355,7 +355,7 @@ FHE.allow(encryptedValue, complianceAddress);
 - Client-side encryption/decryption (@cofhe/sdk)
 - Privara cross-chain settlement
 - Test suite with local FHE mocks
-- Deployment to Arbitrum Sepolia
+- Deployment to Base Sepolia
 
 ### 🚧 In Progress
 - Compliance dashboard with selective disclosure
