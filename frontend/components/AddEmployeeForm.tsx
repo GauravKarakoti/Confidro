@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useWriteContract } from "wagmi";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
 import { useEncryptedSalary } from "@/hooks/useEncryptedSalary";
+// 1. Import the assertion utility
+import { assertCorrectEncryptedItemInput } from "@cofhe/sdk";
 
 export function AddEmployeeForm() {
   const [employeeAddress, setEmployeeAddress] = useState("");
@@ -23,11 +25,15 @@ export function AddEmployeeForm() {
 
     try {
       const encryptedSalary = await encryptSalary(salaryCents);
+      
+      // 2. Assert the encrypted payload to satisfy Viem's typings
+      assertCorrectEncryptedItemInput(encryptedSalary);
+
       await writeContractAsync({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
         functionName: "addEmployee",
-        args: [employeeAddress, encryptedSalary],
+        args: [employeeAddress as `0x${string}`, encryptedSalary],
       });
       alert("Employee added successfully!");
       setEmployeeAddress("");

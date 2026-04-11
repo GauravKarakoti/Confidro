@@ -1,45 +1,62 @@
-import { useEncrypt, useDecrypt, FhenixProvider } from '@cofhe/react';
+import { CONTRACT_ABI, CONTRACT_ADDRESS } from '@/lib/contract';
+import { useCofheEncrypt, useCofheReadContractAndDecrypt } from '@cofhe/react';
+// 1. Import assertCorrectEncryptedItemInput
+import { Encryptable, assertCorrectEncryptedItemInput } from '@cofhe/sdk';
 import { useState } from 'react';
 import { useWriteContract, useAccount } from 'wagmi';
 
-const CONTRACT_ADDRESS = "0x9f3E...c7A2"; // Replace with deployed address
-const ABI: any = [ /* Paste contract ABI from artifacts/contracts/ConfidroPayroll.sol/ConfidroPayroll.json */ ];
-
 function PayrollForm() {
   const { address } = useAccount();
-  const { encrypt, encryptedData, isEncrypting } = useEncrypt();
+  const { encryptInputsAsync, isEncrypting } = useCofheEncrypt();
   const { writeContract } = useWriteContract();
-  const { decrypt, decryptedData } = useDecrypt();
+  
+  const { decrypted } = useCofheReadContractAndDecrypt({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: "salaries",
+    args: address ? [address as `0x${string}`] : undefined,
+  });
   
   const [employeeAddress, setEmployeeAddress] = useState('');
   const [salaryNum, setSalaryNum] = useState(0);
   
   const handleAddEmployee = async () => {
     if (!salaryNum) return;
-    const encrypted = await encrypt(salaryNum);
+
+    const encryptedArray = await encryptInputsAsync([
+      Encryptable.uint64(BigInt(salaryNum))
+    ]);
+    const encrypted = encryptedArray[0];
+
+    // 2. Assert the encrypted input to satisfy Viem's `0x${string}` requirement
+    assertCorrectEncryptedItemInput(encrypted);
+
     writeContract({
       address: CONTRACT_ADDRESS,
-      abi: ABI,
+      abi: CONTRACT_ABI,
       functionName: 'addEmployee',
-      args: [employeeAddress, encrypted],
+      args: [employeeAddress as `0x${string}`, encrypted],
     });
   };
   
   const handleProcessPayroll = () => {
     writeContract({
       address: CONTRACT_ADDRESS,
-      abi: ABI,
+      abi: CONTRACT_ABI,
       functionName: 'processPayroll',
       args: [],
     });
   };
   
-  const handleWithdraw = async () => {
-    // First decrypt your own salary (requires permit)
-    const mySalaryEncrypted = await readContract({ ... }); // fetch from mapping
-    const decrypted = await decrypt(mySalaryEncrypted);
-    if (decrypted > 0) {
-      writeContract({ functionName: 'withdrawSalary' });
+  const handleWithdraw = () => {
+    const salary = decrypted.data;
+    
+    if (salary !== undefined && salary > BigInt(0)) {
+      writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: CONTRACT_ABI,
+        functionName: 'withdrawSalary'
+      });
     }
   };
   
@@ -47,7 +64,9 @@ function PayrollForm() {
     <div>
       <input placeholder="Employee address" onChange={e => setEmployeeAddress(e.target.value)} />
       <input type="number" placeholder="Salary (USDC cents)" onChange={e => setSalaryNum(Number(e.target.value))} />
-      <button onClick={handleAddEmployee} disabled={isEncrypting}>Add Employee</button>
+      <button onClick={handleAddEmployee} disabled={isEncrypting}>
+        {isEncrypting ? "Encrypting..." : "Add Employee"}
+      </button>
       <button onClick={handleProcessPayroll}>Process Payroll</button>
       <button onClick={handleWithdraw}>Withdraw My Salary</button>
     </div>
@@ -56,8 +75,6 @@ function PayrollForm() {
 
 export default function Home() {
   return (
-    <FhenixProvider>
-      <PayrollForm />
-    </FhenixProvider>
+    <PayrollForm />
   );
 }

@@ -4,7 +4,7 @@ import { RainbowKitProvider, getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
 import { arbitrumSepolia, baseSepolia, sepolia } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { FhenixProvider } from "@cofhe/react";
+import { CofheProvider } from "@cofhe/react";
 import "@rainbow-me/rainbowkit/styles.css";
 
 const config = getDefaultConfig({
@@ -21,9 +21,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider>
-          <FhenixProvider>
+          <CofheProvider>
             {children}
-          </FhenixProvider>
+          </CofheProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
