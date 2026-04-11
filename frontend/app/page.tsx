@@ -2,11 +2,18 @@
 
 import { useState } from "react";
 import { ConnectWallet } from "@/components/ConnectWallet";
-import { AddEmployeeForm } from "@/components/AddEmployeeForm";
 import { EmployeeList } from "@/components/EmployeeList";
 import { WithdrawButton } from "@/components/WithdrawButton";
 import { useContract } from "@/hooks/useContract";
 import { useAccount } from "wagmi";
+import dynamic from "next/dynamic";
+
+// ADD THIS DYNAMIC IMPORT:
+// Disable SSR for the form since it relies on browser-only cryptography libraries
+const AddEmployeeForm = dynamic(
+  () => import("@/components/AddEmployeeForm").then((mod) => mod.AddEmployeeForm),
+  { ssr: false }
+);
 
 export default function Home() {
   const { isConnected } = useAccount();
