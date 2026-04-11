@@ -62,7 +62,7 @@ describe("ConfidroPayroll", function () {
     await payroll.addEmployee(employee1Address, salary1);
     await payroll.addEmployee(employee2Address, salary2);
 
-    const total = await payroll.getDecryptedTotal();
+    const total = await payroll.getEncryptedTotal();
     expect(total).to.equal(3000);
   });
 
@@ -76,7 +76,7 @@ describe("ConfidroPayroll", function () {
 
     await payroll.addEmployee(employee1Address, largeSalary);
 
-    const total = await payroll.getDecryptedTotal();
+    const total = await payroll.getEncryptedTotal();
     expect(total).to.equal(maxUint32);
   });
 });

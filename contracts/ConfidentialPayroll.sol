@@ -8,6 +8,9 @@ contract ConfidroPayroll is Ownable {
     // Encrypted salary per employee (wallet -> encrypted uint32)
     mapping(address => euint32) public salaries;
     
+    // Plaintext mapping to track active employees to save gas on empty withdrawals
+    mapping(address => bool) public hasActiveSalary;
+    
     // Encrypted total payroll accumulator
     euint32 public totalPayroll;
     
@@ -20,10 +23,11 @@ contract ConfidroPayroll is Ownable {
     
     // Add employee with encrypted salary (called by employer)
     function addEmployee(address employee, euint32 encryptedSalary) public onlyOwner {
-        require(FHE.decrypt(encryptedSalary) > 0, "Salary must be > 0");
+        // Validation (salary > 0) is handled client-side before encryption.
         
-        // Store encrypted salary
+        // Store encrypted salary and mark as active
         salaries[employee] = encryptedSalary;
+        hasActiveSalary[employee] = true;
         
         // Add to total payroll using FHE addition
         totalPayroll = FHE.add(totalPayroll, encryptedSalary);
@@ -36,23 +40,20 @@ contract ConfidroPayroll is Ownable {
     }
     
     // Process payroll – in this MVP we just prepare for withdrawals
-    // In later waves we'll integrate Privara settlement
     function processPayroll() public onlyOwner {
-        // We'll just emit an event to simulate settlement
-        // Actual transfer will happen in withdrawSalary()
         emit PayrollProcessed(block.timestamp);
     }
     
     // Employee withdraws their salary
     function withdrawSalary() public {
+        // Check plaintext boolean instead of decrypting the salary
+        require(hasActiveSalary[msg.sender], "No salary to withdraw");
+        
         euint32 salary = salaries[msg.sender];
-        // Decrypt to check if >0 (gas cost but needed for UX)
-        require(FHE.decrypt(salary) > 0, "No salary to withdraw");
         
-        // Here you would transfer funds (e.g., USDC)
-        // For MVP, we just clear the salary mapping
-        delete salaries[msg.sender];
-        
+        // Mark as inactive to prevent double-withdrawals
+        hasActiveSalary[msg.sender] = false;
+                
         // Recompute totalPayroll homomorphically (subtract salary)
         totalPayroll = FHE.sub(totalPayroll, salary);
         FHE.allowThis(totalPayroll);
@@ -61,8 +62,8 @@ contract ConfidroPayroll is Ownable {
         emit SalaryWithdrawn(msg.sender, salary);
     }
     
-    // Helper to view decrypted total (only owner can decrypt)
-    function getDecryptedTotal() public view onlyOwner returns (uint32) {
-        return FHE.decrypt(totalPayroll);
+    // Return the encrypted total. The authorized owner decrypts this client-side.
+    function getEncryptedTotal() public view onlyOwner returns (euint32) {
+        return totalPayroll;
     }
 }

@@ -16,14 +16,14 @@ export function useContract() {
     });
   };
 
-  const getDecryptedTotal = async (): Promise<string | null> => {
+  const getEncryptedTotal = async (): Promise<string | null> => {
     // Only owner can call this view function
     if (!address) return null;
     try {
       const result = await useReadContract({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
-        functionName: "getDecryptedTotal",
+        functionName: "getEncryptedTotal",
         args: [],
       });
       return result?.toString() ?? null;
@@ -43,7 +43,7 @@ export function useContract() {
 
   return {
     processPayroll,
-    getDecryptedTotal,
+    getEncryptedTotal,
     withdrawSalary,
   };
 }

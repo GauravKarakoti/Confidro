@@ -10,7 +10,7 @@ import { useAccount } from "wagmi";
 
 export default function Home() {
   const { isConnected } = useAccount();
-  const { processPayroll, getDecryptedTotal } = useContract();
+  const { processPayroll, getEncryptedTotal } = useContract();
   const [totalPayroll, setTotalPayroll] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -28,7 +28,7 @@ export default function Home() {
   };
 
   const handleShowTotal = async () => {
-    const total = await getDecryptedTotal();
+    const total = await getEncryptedTotal();
     setTotalPayroll(total);
   };
 

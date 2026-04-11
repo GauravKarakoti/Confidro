@@ -26,7 +26,7 @@ export const CONTRACT_ABI = [
   },
   {
     "inputs": [],
-    "name": "getDecryptedTotal",
+    "name": "getEncryptedTotal",
     "outputs": [{ "name": "", "type": "uint32" }],
     "stateMutability": "view",
     "type": "function"

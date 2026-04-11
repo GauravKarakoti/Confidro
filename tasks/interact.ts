@@ -29,6 +29,6 @@ task("interact", "Deploys and runs Confidro payroll flow")
     console.log("💸 Payroll processed");
 
     // Get total payroll (decrypted)
-    const total = await payroll.getDecryptedTotal();
+    const total = await payroll.getEncryptedTotal();
     console.log("📊 Total payroll (decrypted):", total.toString());
   });
