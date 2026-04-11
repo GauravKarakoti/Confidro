@@ -21,9 +21,9 @@ contract ConfidroPayroll is Ownable {
     
     constructor() Ownable(msg.sender) {}
     
-    // Add employee with encrypted salary (called by employer)
-    function addEmployee(address employee, euint32 encryptedSalary) public onlyOwner {
-        // Validation (salary > 0) is handled client-side before encryption.
+    function addEmployee(address employee, InEuint32 calldata encryptedSalaryInput) public onlyOwner {
+        // Convert the input struct (which verifies the ZK proof) into a trusted euint32
+        euint32 encryptedSalary = FHE.asEuint32(encryptedSalaryInput);
         
         // Store encrypted salary and mark as active
         salaries[employee] = encryptedSalary;

@@ -17,7 +17,7 @@ describe("ConfidroPayroll", function () {
   });
 
   it("1. Should add employee with encrypted salary", async function () {
-    const fhe = require("@fhenixprotocol/cofhe-hardhat-plugin").fhe;
+    const fhe = await hre.cofhe.createClientWithBatteries();
 
     const employee1Address = await employee1.getAddress();
     const encryptedSalary = await fhe.encrypt32(5000);
@@ -35,7 +35,7 @@ describe("ConfidroPayroll", function () {
   });
 
   it("3. Employee can withdraw salary", async function () {
-    const fhe = require("@fhenixprotocol/cofhe-hardhat-plugin").fhe;
+    const fhe = await hre.cofhe.createClientWithBatteries();
 
     const employee1Address = await employee1.getAddress();
     const encryptedSalary = await fhe.encrypt32(5000);
@@ -51,7 +51,7 @@ describe("ConfidroPayroll", function () {
   });
 
   it("4. Compliance view (owner can see total)", async function () {
-    const fhe = require("@fhenixprotocol/cofhe-hardhat-plugin").fhe;
+    const fhe = await hre.cofhe.createClientWithBatteries();
 
     const employee1Address = await employee1.getAddress();
     const employee2Address = await employee2.getAddress();
@@ -67,7 +67,7 @@ describe("ConfidroPayroll", function () {
   });
 
   it("5. Overflow protection – FHE handles large numbers", async function () {
-    const fhe = require("@fhenixprotocol/cofhe-hardhat-plugin").fhe;
+    const fhe = await hre.cofhe.createClientWithBatteries();
 
     const employee1Address = await employee1.getAddress();
     const maxUint32 = 4294967295;
