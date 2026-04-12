@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = "0x751cE5d771Fac1dA6D44Ad00cCba49f312d8A322";
+export const CONTRACT_ADDRESS = "0x75d5f7935cfBE3d16fD915de24B84f36D61778E6";
 
 export const CONTRACT_ABI = [
     {
@@ -125,6 +125,38 @@ export const CONTRACT_ABI = [
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "employeeList",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getEmployees",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "",
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "getEncryptedTotal",
       "outputs": [
@@ -151,6 +183,19 @@ export const CONTRACT_ABI = [
           "internalType": "bool",
           "name": "",
           "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
         }
       ],
       "stateMutability": "view",

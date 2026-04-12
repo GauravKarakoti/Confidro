@@ -1,30 +1,32 @@
-import { useReadContract, useWriteContract, useAccount } from "wagmi";
+import { useWriteContract, useAccount, usePublicClient } from "wagmi";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
 
 export function useContract() {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
-
-  // Add employee is handled in AddEmployeeForm using useWriteContract directly
-  // but we expose common actions here
+  
+  // 1. Initialize the public client at the top level
+  const publicClient = usePublicClient();
 
   const processPayroll = async () => {
     return writeContractAsync({
       address: CONTRACT_ADDRESS,
       abi: CONTRACT_ABI,
       functionName: "processPayroll",
+      gas: BigInt(25000000), 
     });
   };
 
   const getEncryptedTotal = async (): Promise<string | null> => {
-    // Only owner can call this view function
-    if (!address) return null;
+    // 2. Ensure both address and publicClient are available
+    if (!address || !publicClient) return null;
+    
     try {
-      const result = await useReadContract({
+      // 3. Use the publicClient to read the contract imperatively
+      const result = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
         functionName: "getEncryptedTotal",
-        args: [],
       });
       return result?.toString() ?? null;
     } catch (error) {
@@ -38,6 +40,7 @@ export function useContract() {
       address: CONTRACT_ADDRESS,
       abi: CONTRACT_ABI,
       functionName: "withdrawSalary",
+      gas: BigInt(25000000), 
     });
   };
 

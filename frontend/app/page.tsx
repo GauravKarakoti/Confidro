@@ -5,8 +5,11 @@ import { ConnectWallet } from "@/components/ConnectWallet";
 import { EmployeeList } from "@/components/EmployeeList";
 import { WithdrawButton } from "@/components/WithdrawButton";
 import { useContract } from "@/hooks/useContract";
-import { useAccount } from "wagmi";
+import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import dynamic from "next/dynamic";
+import { createCofheClient, createCofheConfig } from "@cofhe/sdk/web";
+import { arbSepolia, baseSepolia, sepolia } from "@cofhe/sdk/chains";
+import { FheTypes } from "@cofhe/sdk";
 
 // ADD THIS DYNAMIC IMPORT:
 // Disable SSR for the form since it relies on browser-only cryptography libraries
@@ -18,8 +21,12 @@ const AddEmployeeForm = dynamic(
 export default function Home() {
   const { isConnected } = useAccount();
   const { processPayroll, getEncryptedTotal } = useContract();
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  
   const [totalPayroll, setTotalPayroll] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDecryptingTotal, setIsDecryptingTotal] = useState(false);;
 
   const handleProcessPayroll = async () => {
     setIsProcessing(true);
@@ -35,8 +42,44 @@ export default function Home() {
   };
 
   const handleShowTotal = async () => {
-    const total = await getEncryptedTotal();
-    setTotalPayroll(total);
+    if (!publicClient || !walletClient) {
+      alert("Wallet clients not ready.");
+      return;
+    }
+
+    setIsDecryptingTotal(true);
+    try {
+      // Step A: Fetch the encrypted ciphertext
+      const encryptedTotal = await getEncryptedTotal();
+      if (!encryptedTotal) return;
+
+      // Step B: Initialize the CoFHE client
+      const config = createCofheConfig({
+        supportedChains: [baseSepolia, arbSepolia, sepolia],
+        environment: "web"
+      });
+      const client = await createCofheClient(config);
+      await client.connect(publicClient as any, walletClient as any);
+
+      // Step C: Request/fetch the wallet signature
+      const permit = await client.permits.getOrCreateSelfPermit();
+
+      // Step D: Decrypt the ciphertext
+      const decryptedTotal = await client.decryptForView(
+        encryptedTotal,
+        FheTypes.Uint32
+      )
+      .withPermit(permit)
+      .execute();
+
+      // Step E: Store the actual plaintext value
+      setTotalPayroll(decryptedTotal.toString());
+    } catch (error) {
+      console.error("Failed to decrypt total payroll:", error);
+      alert("Failed to decrypt total payroll. Ensure you signed the permit.");
+    } finally {
+      setIsDecryptingTotal(false);
+    }
   };
 
   return (
@@ -72,8 +115,12 @@ export default function Home() {
                   >
                     {isProcessing ? "Processing..." : "Process Payroll"}
                   </button>
-                  <button onClick={handleShowTotal} className="btn-secondary w-full">
-                    Show Total Payroll (Owner Only)
+                  <button 
+                    onClick={handleShowTotal} 
+                    disabled={isDecryptingTotal}
+                    className="btn-secondary w-full"
+                  >
+                    {isDecryptingTotal ? "Decrypting Total..." : "Show Total Payroll (Owner Only)"}
                   </button>
                   {totalPayroll !== null && (
                     <div className="mt-2 p-2 bg-green-50 rounded text-green-800">

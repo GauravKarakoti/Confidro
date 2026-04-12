@@ -1,23 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useReadContract } from "wagmi";
+import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
 
-// This is a simplified version – in a real app you'd need to query events
-// or maintain an off-chain list of employees.
 export function EmployeeList() {
-  const [employees, setEmployees] = useState<string[]>([]);
-  // Placeholder: we assume employees are known from events.
-  // For demo, we'll show a static message.
+  // Fetch the employee list directly from the smart contract
+  const { data: employees, isLoading, isError } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: "getEmployees",
+  });
+
+  if (isLoading) {
+    return <div className="text-gray-500 text-sm">Loading employees...</div>;
+  }
+
+  if (isError) {
+    return <div className="text-red-500 text-sm">Error loading employees.</div>;
+  }
+
+  const employeeList = (employees as string[]) || [];
 
   return (
     <div className="space-y-2">
-      <p className="text-gray-500 text-sm">Employee addresses will appear here after being added.</p>
-      {employees.length === 0 && (
+      <p className="text-gray-500 text-sm">Active Employees:</p>
+      {employeeList.length === 0 && (
         <div className="bg-gray-50 rounded p-3 text-center text-gray-400">
           No employees added yet.
         </div>
       )}
-      {employees.map((emp, idx) => (
+      {employeeList.map((emp, idx) => (
         <div key={idx} className="bg-gray-50 p-2 rounded text-sm font-mono break-all">
           {emp}
         </div>

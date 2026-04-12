@@ -26,7 +26,7 @@ export function AddEmployeeForm() {
     try {
       const encryptedSalary = await encryptSalary(salaryCents);
       
-      // 2. Assert the encrypted payload to satisfy Viem's typings
+      // Assert the encrypted payload to satisfy Viem's typings
       assertCorrectEncryptedItemInput(encryptedSalary);
 
       await writeContractAsync({
@@ -34,6 +34,8 @@ export function AddEmployeeForm() {
         abi: CONTRACT_ABI,
         functionName: "addEmployee",
         args: [employeeAddress as `0x${string}`, encryptedSalary],
+        // 🚨 ADD THIS LINE: Explicitly set a high gas limit to bypass Viem's estimation failure
+        gas: BigInt(25000000), 
       });
       alert("Employee added successfully!");
       setEmployeeAddress("");
