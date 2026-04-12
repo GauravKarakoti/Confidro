@@ -4,11 +4,14 @@ import { useReadContract } from "wagmi";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
 
 export function EmployeeList() {
-  // Fetch the employee list directly from the smart contract
   const { data: employees, isLoading, isError } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: "getEmployees",
+    // 🚨 Add this query block to auto-refresh the list
+    query: {
+      refetchInterval: 3000, // Polls every 3 seconds
+    }
   });
 
   if (isLoading) {

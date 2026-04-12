@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useWriteContract } from "wagmi";
+// 🚨 Import usePublicClient
+import { useWriteContract, usePublicClient } from "wagmi"; 
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
 import { useEncryptedSalary } from "@/hooks/useEncryptedSalary";
-// 1. Import the assertion utility
 import { assertCorrectEncryptedItemInput } from "@cofhe/sdk";
 
 export function AddEmployeeForm() {
@@ -12,6 +12,9 @@ export function AddEmployeeForm() {
   const [salary, setSalary] = useState("");
   const { writeContractAsync, isPending } = useWriteContract();
   const { encryptSalary, isEncrypting, error: encryptError } = useEncryptedSalary();
+  
+  // 🚨 Initialize publicClient
+  const publicClient = usePublicClient(); 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,18 +28,22 @@ export function AddEmployeeForm() {
 
     try {
       const encryptedSalary = await encryptSalary(salaryCents);
-      
-      // Assert the encrypted payload to satisfy Viem's typings
       assertCorrectEncryptedItemInput(encryptedSalary);
 
-      await writeContractAsync({
+      // 🚨 Capture the transaction hash returned by writeContractAsync
+      const hash = await writeContractAsync({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
         functionName: "addEmployee",
         args: [employeeAddress as `0x${string}`, encryptedSalary],
-        // 🚨 ADD THIS LINE: Explicitly set a high gas limit to bypass Viem's estimation failure
         gas: BigInt(25000000), 
       });
+
+      // 🚨 Wait for the transaction to be mined before proceeding
+      if (publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
+
       alert("Employee added successfully!");
       setEmployeeAddress("");
       setSalary("");
