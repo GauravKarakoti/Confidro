@@ -15,7 +15,7 @@ const CofheProvider = dynamic(
 
 const config = getDefaultConfig({
   appName: "Confidro",
-  projectId: "YOUR_WALLET_CONNECT_PROJECT_ID", // Get from https://cloud.walletconnect.com
+  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID!, // Get from https://cloud.walletconnect.com
   chains: [arbitrumSepolia, baseSepolia, sepolia],
   ssr: true,
 });
