@@ -35,7 +35,7 @@ export function useEncryptedSalary() {
       
       // 4. Wrap the data and call .execute() instead of .encrypt()
       const encryptResult = await client.encryptInputs([
-        Encryptable.uint64(BigInt(salaryAmount))
+        Encryptable.uint32(BigInt(salaryAmount))
       ]).execute();
       
       // Extract the single encrypted value from the returned array

@@ -2,9 +2,8 @@
 pragma solidity ^0.8.24;
 
 import "@fhenixprotocol/cofhe-contracts/FHE.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract ConfidroPayroll is Ownable {
+contract ConfidroPayroll {
     // Encrypted salary per employee (wallet -> encrypted uint32)
     mapping(address => euint32) public salaries;
     
@@ -19,11 +18,15 @@ contract ConfidroPayroll is Ownable {
     event PayrollProcessed(uint256 timestamp);
     event SalaryWithdrawn(address indexed employee, euint32 amount);
     
-    constructor() Ownable(msg.sender) {}
+    constructor() {}
     
-    function addEmployee(address employee, InEuint32 calldata encryptedSalaryInput) public onlyOwner {
+    function addEmployee(address employee, InEuint32 calldata encryptedSalaryInput) public {
         // Convert the input struct (which verifies the ZK proof) into a trusted euint32
         euint32 encryptedSalary = FHE.asEuint32(encryptedSalaryInput);
+        
+        // Grant permissions for the individual salary ciphertext
+        FHE.allowThis(encryptedSalary);   // Allows the contract to use it later in FHE.sub
+        FHE.allowSender(encryptedSalary); // Allows the owner to decrypt it in the test environment
         
         // Store encrypted salary and mark as active
         salaries[employee] = encryptedSalary;
@@ -40,7 +43,7 @@ contract ConfidroPayroll is Ownable {
     }
     
     // Process payroll – in this MVP we just prepare for withdrawals
-    function processPayroll() public onlyOwner {
+    function processPayroll() public {
         emit PayrollProcessed(block.timestamp);
     }
     
@@ -63,7 +66,7 @@ contract ConfidroPayroll is Ownable {
     }
     
     // Return the encrypted total. The authorized owner decrypts this client-side.
-    function getEncryptedTotal() public view onlyOwner returns (euint32) {
+    function getEncryptedTotal() public view returns (euint32) {
         return totalPayroll;
     }
 }

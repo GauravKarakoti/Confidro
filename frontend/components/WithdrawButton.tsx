@@ -51,7 +51,7 @@ export function WithdrawButton() {
         // Use the updated decryptForView builder pattern
         const decryptedValue = await client.decryptForView(
           encryptedData as bigint | string, 
-          FheTypes.Uint64 // Match the uint64 used during encryption
+          FheTypes.Uint32 // Match the uint32 used during encryption
         )
         .withPermit() // Use the active permit connected to the account
         .execute();

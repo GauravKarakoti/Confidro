@@ -1,9 +1,10 @@
 import { expect } from "chai";
 import hre from "hardhat";
-import { Contract, Signer } from "ethers";
+import { Signer } from "ethers";
+import { Encryptable, FheTypes } from "@cofhe/sdk";
 
 describe("ConfidroPayroll", function () {
-  let payroll: Contract;
+  let payroll: any; 
   let owner: Signer;
   let employee1: Signer;
   let employee2: Signer;
@@ -18,18 +19,19 @@ describe("ConfidroPayroll", function () {
 
   it("1. Should add employee with encrypted salary", async function () {
     const fhe = await hre.cofhe.createClientWithBatteries();
-
     const employee1Address = await employee1.getAddress();
-    const encryptedSalary = await fhe.encrypt32(5000);
+
+    // Finalize with .execute() and destructure the result directly
+    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint32(5000n)]).execute();
 
     await expect(payroll.addEmployee(employee1Address, encryptedSalary))
       .to.emit(payroll, "EmployeeAdded");
 
     const stored = await payroll.salaries(employee1Address);
 
-    // Decrypt to verify
-    const decrypted = await fhe.decrypt32(stored);
-    expect(decrypted).to.equal(5000);
+    // Use decryptForView and finalize with .execute()
+    const decrypted = await fhe.decryptForView(stored, FheTypes.Uint32).execute();
+    expect(Number(decrypted)).to.equal(5000);
   });
 
   it("2. Should process payroll without error", async function () {
@@ -39,9 +41,9 @@ describe("ConfidroPayroll", function () {
 
   it("3. Employee can withdraw salary (and becomes inactive)", async function () {
     const fhe = await hre.cofhe.createClientWithBatteries();
-
     const employee1Address = await employee1.getAddress();
-    const encryptedSalary = await fhe.encrypt32(5000);
+
+    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint32(5000n)]).execute();
 
     await payroll.addEmployee(employee1Address, encryptedSalary);
 
@@ -49,7 +51,6 @@ describe("ConfidroPayroll", function () {
       payroll.connect(employee1).withdrawSalary()
     ).to.emit(payroll, "SalaryWithdrawn");
 
-    // Check inactive instead of zero salary
     const isActive = await payroll.hasActiveSalary(employee1Address);
     expect(isActive).to.equal(false);
   });
@@ -60,39 +61,40 @@ describe("ConfidroPayroll", function () {
     const employee1Address = await employee1.getAddress();
     const employee2Address = await employee2.getAddress();
 
-    const salary1 = await fhe.encrypt32(1000);
-    const salary2 = await fhe.encrypt32(2000);
+    const [salary1] = await fhe.encryptInputs([Encryptable.uint32(1000n)]).execute();
+    const [salary2] = await fhe.encryptInputs([Encryptable.uint32(2000n)]).execute();
 
     await payroll.addEmployee(employee1Address, salary1);
     await payroll.addEmployee(employee2Address, salary2);
 
     const encryptedTotal = await payroll.getEncryptedTotal();
 
-    const decryptedTotal = await fhe.decrypt32(encryptedTotal);
-    expect(decryptedTotal).to.equal(3000);
+    const decryptedTotal = await fhe.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+    expect(Number(decryptedTotal)).to.equal(3000);
   });
 
   it("5. Handles large numbers correctly (no overflow issues)", async function () {
     const fhe = await hre.cofhe.createClientWithBatteries();
 
     const employee1Address = await employee1.getAddress();
-    const maxUint32 = 4294967295;
+    const maxUint32 = 4294967295n; 
 
-    const largeSalary = await fhe.encrypt32(maxUint32);
+    const [largeSalary] = await fhe.encryptInputs([Encryptable.uint32(maxUint32)]).execute();
 
     await payroll.addEmployee(employee1Address, largeSalary);
 
     const encryptedTotal = await payroll.getEncryptedTotal();
-    const decryptedTotal = await fhe.decrypt32(encryptedTotal);
-
-    expect(decryptedTotal).to.equal(maxUint32);
+    
+    const decryptedTotal = await fhe.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+    expect(Number(decryptedTotal)).to.equal(Number(maxUint32));
   });
 
   it("6. Prevents double withdrawal", async function () {
     const fhe = await hre.cofhe.createClientWithBatteries();
 
     const employee1Address = await employee1.getAddress();
-    const encryptedSalary = await fhe.encrypt32(5000);
+    
+    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint32(5000n)]).execute();
 
     await payroll.addEmployee(employee1Address, encryptedSalary);
 
