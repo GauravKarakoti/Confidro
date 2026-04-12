@@ -25,8 +25,11 @@ describe("ConfidroPayroll", function () {
     await expect(payroll.addEmployee(employee1Address, encryptedSalary))
       .to.emit(payroll, "EmployeeAdded");
 
-    const salary = await payroll.salaries(employee1Address);
-    expect(salary).to.not.equal(0);
+    const stored = await payroll.salaries(employee1Address);
+
+    // Decrypt to verify
+    const decrypted = await fhe.decrypt32(stored);
+    expect(decrypted).to.equal(5000);
   });
 
   it("2. Should process payroll without error", async function () {
@@ -34,23 +37,24 @@ describe("ConfidroPayroll", function () {
       .to.emit(payroll, "PayrollProcessed");
   });
 
-  it("3. Employee can withdraw salary", async function () {
+  it("3. Employee can withdraw salary (and becomes inactive)", async function () {
     const fhe = await hre.cofhe.createClientWithBatteries();
 
     const employee1Address = await employee1.getAddress();
     const encryptedSalary = await fhe.encrypt32(5000);
 
     await payroll.addEmployee(employee1Address, encryptedSalary);
-    await payroll.connect(employee1).withdrawSalary();
 
-    const salaryAfter = await payroll.salaries(employee1Address);
+    await expect(
+      payroll.connect(employee1).withdrawSalary()
+    ).to.emit(payroll, "SalaryWithdrawn");
 
-    // Decrypt to verify it's zero
-    const decrypted = await fhe.decrypt32(salaryAfter);
-    expect(decrypted).to.equal(0);
+    // Check inactive instead of zero salary
+    const isActive = await payroll.hasActiveSalary(employee1Address);
+    expect(isActive).to.equal(false);
   });
 
-  it("4. Compliance view (owner can see total)", async function () {
+  it("4. Owner can view and decrypt total payroll", async function () {
     const fhe = await hre.cofhe.createClientWithBatteries();
 
     const employee1Address = await employee1.getAddress();
@@ -62,11 +66,13 @@ describe("ConfidroPayroll", function () {
     await payroll.addEmployee(employee1Address, salary1);
     await payroll.addEmployee(employee2Address, salary2);
 
-    const total = await payroll.getEncryptedTotal();
-    expect(total).to.equal(3000);
+    const encryptedTotal = await payroll.getEncryptedTotal();
+
+    const decryptedTotal = await fhe.decrypt32(encryptedTotal);
+    expect(decryptedTotal).to.equal(3000);
   });
 
-  it("5. Overflow protection – FHE handles large numbers", async function () {
+  it("5. Handles large numbers correctly (no overflow issues)", async function () {
     const fhe = await hre.cofhe.createClientWithBatteries();
 
     const employee1Address = await employee1.getAddress();
@@ -76,7 +82,24 @@ describe("ConfidroPayroll", function () {
 
     await payroll.addEmployee(employee1Address, largeSalary);
 
-    const total = await payroll.getEncryptedTotal();
-    expect(total).to.equal(maxUint32);
+    const encryptedTotal = await payroll.getEncryptedTotal();
+    const decryptedTotal = await fhe.decrypt32(encryptedTotal);
+
+    expect(decryptedTotal).to.equal(maxUint32);
+  });
+
+  it("6. Prevents double withdrawal", async function () {
+    const fhe = await hre.cofhe.createClientWithBatteries();
+
+    const employee1Address = await employee1.getAddress();
+    const encryptedSalary = await fhe.encrypt32(5000);
+
+    await payroll.addEmployee(employee1Address, encryptedSalary);
+
+    await payroll.connect(employee1).withdrawSalary();
+
+    await expect(
+      payroll.connect(employee1).withdrawSalary()
+    ).to.be.revertedWith("No salary to withdraw");
   });
 });

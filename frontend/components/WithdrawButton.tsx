@@ -6,6 +6,7 @@ import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
 import { useState, useEffect } from "react";
 import { createCofheClient, createCofheConfig } from "@cofhe/sdk/web";
 import { FheTypes } from "@cofhe/sdk";
+import { arbSepolia, baseSepolia, sepolia } from "@cofhe/sdk/chains";
 
 export function WithdrawButton() {
   const { address } = useAccount();
@@ -36,7 +37,7 @@ export function WithdrawButton() {
       try {
         // Initialize the Web Configuration
         const config = createCofheConfig({
-          supportedChains: [], 
+          supportedChains: [baseSepolia, arbSepolia, sepolia], 
           environment: "web"
         });
         

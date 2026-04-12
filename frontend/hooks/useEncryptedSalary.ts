@@ -2,6 +2,7 @@ import { createCofheClient, createCofheConfig } from "@cofhe/sdk/web";
 import { Encryptable } from "@cofhe/sdk";
 import { useState } from "react";
 import { usePublicClient, useWalletClient } from "wagmi";
+import { arbSepolia, baseSepolia, sepolia } from "@cofhe/sdk/chains";
 
 export function useEncryptedSalary() {
   const [isEncrypting, setIsEncrypting] = useState(false);
@@ -20,7 +21,7 @@ export function useEncryptedSalary() {
       // Note: If you have specific CoFHE chains, you can import them from '@cofhe/sdk/chains' 
       // and pass them into supportedChains.
       const config = createCofheConfig({
-        supportedChains: [], 
+        supportedChains: [baseSepolia, arbSepolia, sepolia], 
         environment: "web"
       });
 
