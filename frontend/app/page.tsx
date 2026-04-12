@@ -7,9 +7,6 @@ import { WithdrawButton } from "@/components/WithdrawButton";
 import { useContract } from "@/hooks/useContract";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import dynamic from "next/dynamic";
-import { createCofheClient, createCofheConfig } from "@cofhe/sdk/web";
-import { arbSepolia, baseSepolia, sepolia } from "@cofhe/sdk/chains";
-import { FheTypes } from "@cofhe/sdk";
 
 // ADD THIS DYNAMIC IMPORT:
 // Disable SSR for the form since it relies on browser-only cryptography libraries
@@ -49,6 +46,11 @@ export default function Home() {
 
     setIsDecryptingTotal(true);
     try {
+      // Dynamically import the browser-only cryptography modules on demand
+      const { createCofheClient, createCofheConfig } = await import("@cofhe/sdk/web");
+      const { arbSepolia, baseSepolia, sepolia } = await import("@cofhe/sdk/chains");
+      const { FheTypes } = await import("@cofhe/sdk");
+
       // Step A: Fetch the encrypted ciphertext
       const encryptedTotal = await getEncryptedTotal();
       if (!encryptedTotal) return;

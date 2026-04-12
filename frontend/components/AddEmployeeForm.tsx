@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-// 🚨 Import usePublicClient
 import { useWriteContract, usePublicClient } from "wagmi"; 
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
 import { useEncryptedSalary } from "@/hooks/useEncryptedSalary";
-import { assertCorrectEncryptedItemInput } from "@cofhe/sdk";
 
 export function AddEmployeeForm() {
   const [employeeAddress, setEmployeeAddress] = useState("");
@@ -13,7 +11,6 @@ export function AddEmployeeForm() {
   const { writeContractAsync, isPending } = useWriteContract();
   const { encryptSalary, isEncrypting, error: encryptError } = useEncryptedSalary();
   
-  // 🚨 Initialize publicClient
   const publicClient = usePublicClient(); 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,18 +25,26 @@ export function AddEmployeeForm() {
 
     try {
       const encryptedSalary = await encryptSalary(salaryCents);
-      assertCorrectEncryptedItemInput(encryptedSalary);
+      
+      // Fix 1: Cast the dynamically imported assert function to 'any' 
+      // to bypass the TypeScript destructuring limitation. (It still validates at runtime).
+      const sdk = await import("@cofhe/sdk");
+      (sdk.assertCorrectEncryptedItemInput as any)(encryptedSalary);
 
-      // 🚨 Capture the transaction hash returned by writeContractAsync
+      // Fix 2: Explicitly cast the signature to Wagmi's required `0x${string}` type
+      const formattedEncryptedSalary = {
+        ...encryptedSalary,
+        signature: encryptedSalary.signature as `0x${string}`,
+      };
+
       const hash = await writeContractAsync({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
         functionName: "addEmployee",
-        args: [employeeAddress as `0x${string}`, encryptedSalary],
+        args: [employeeAddress as `0x${string}`, formattedEncryptedSalary],
         gas: BigInt(25000000), 
       });
 
-      // 🚨 Wait for the transaction to be mined before proceeding
       if (publicClient) {
         await publicClient.waitForTransactionReceipt({ hash });
       }

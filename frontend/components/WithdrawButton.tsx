@@ -4,9 +4,6 @@ import { useAccount, useReadContract, usePublicClient, useWalletClient } from "w
 import { useContract } from "@/hooks/useContract";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
 import { useState } from "react";
-import { createCofheClient, createCofheConfig } from "@cofhe/sdk/web";
-import { FheTypes } from "@cofhe/sdk";
-import { arbSepolia, baseSepolia, sepolia } from "@cofhe/sdk/chains";
 
 export function WithdrawButton() {
   const { address } = useAccount();
@@ -35,6 +32,11 @@ export function WithdrawButton() {
 
     setIsDecrypting(true);
     try {
+      // Dynamically import the browser-only cryptography modules
+      const { createCofheClient, createCofheConfig } = await import("@cofhe/sdk/web");
+      const { FheTypes } = await import("@cofhe/sdk");
+      const { arbSepolia, baseSepolia, sepolia } = await import("@cofhe/sdk/chains");
+
       const config = createCofheConfig({
         supportedChains: [baseSepolia, arbSepolia, sepolia], 
         environment: "web"
