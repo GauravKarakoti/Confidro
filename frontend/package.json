@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@cofhe/abi": "^0.4.0",
-    "@cofhe/react": "^0.4.0",
     "@cofhe/sdk": "^0.4.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
@@ -19,7 +18,7 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "viem": "^2.47.12",
-    "wagmi": "^3.6.1"
+    "wagmi": "^2.19.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

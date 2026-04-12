@@ -1,43 +1,86 @@
 "use client";
 
-import { useAccount } from "wagmi";
+import { useAccount, useReadContract, usePublicClient, useWalletClient } from "wagmi";
 import { useContract } from "@/hooks/useContract";
-import { useCofheReadContractAndDecrypt } from "@cofhe/react";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createCofheClient, createCofheConfig } from "@cofhe/sdk/web";
+import { FheTypes } from "@cofhe/sdk";
 
 export function WithdrawButton() {
   const { address } = useAccount();
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
   const { withdrawSalary } = useContract();
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+  
+  const [decryptedData, setDecryptedData] = useState<string | undefined>(undefined);
+  const [isDecrypting, setIsDecrypting] = useState(false);
 
-  // useCofheReadContractAndDecrypt handles both reading the FHE value from the contract 
-  // and decrypting it using the user's active permit.
-  const { encrypted, decrypted } = useCofheReadContractAndDecrypt({
+  // 1. Read the encrypted FHE value from the contract using standard Wagmi
+  const { data: encryptedData, refetch } = useReadContract({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: CONTRACT_ABI,
     functionName: "salaries",
     args: [address as `0x${string}`],
-  }, {
-    readQueryOptions: { enabled: !!address }
+    query: { enabled: !!address }
   });
+
+  // 2. Decrypt the value locally using the CoFHE SDK
+  useEffect(() => {
+    async function decrypt() {
+      // Ensure we have the encrypted data, the user's address, and Wagmi clients
+      if (!encryptedData || !address || !publicClient) return;
+      
+      setIsDecrypting(true);
+      try {
+        // Initialize the Web Configuration
+        const config = createCofheConfig({
+          supportedChains: [], 
+          environment: "web"
+        });
+        
+        const client = await createCofheClient(config);
+
+        // Connect the Wagmi clients so the SDK knows the current network state
+        if (publicClient && walletClient) {
+          await client.connect(publicClient as any, walletClient as any);
+        }
+
+        // Use the updated decryptForView builder pattern
+        const decryptedValue = await client.decryptForView(
+          encryptedData as bigint | string, 
+          FheTypes.Uint64 // Match the uint64 used during encryption
+        )
+        .withPermit() // Use the active permit connected to the account
+        .execute();
+
+        setDecryptedData(decryptedValue.toString());
+      } catch (err) {
+        console.error("Decryption failed:", err);
+      } finally {
+        setIsDecrypting(false);
+      }
+    }
+    decrypt();
+  }, [encryptedData, address, publicClient, walletClient]);
 
   const handleWithdraw = async () => {
     // Prevent action if data isn't fully decrypted yet
-    if (decrypted.data === undefined) {
+    if (decryptedData === undefined) {
       alert("Salary not ready or no permit.");
       return;
     }
 
     try {
-      const salaryNum = Number(decrypted.data);
+      const salaryNum = Number(decryptedData);
       if (salaryNum > 0) {
         setIsWithdrawing(true);
         await withdrawSalary();
         alert(`Withdrew $${(salaryNum / 100).toFixed(2)} USDC`);
         
         // Refetch the on-chain value so the UI updates
-        encrypted.refetch(); 
+        refetch(); 
       } else {
         alert("No salary to withdraw.");
       }
@@ -55,19 +98,19 @@ export function WithdrawButton() {
     <div className="space-y-3">
       <button
         onClick={handleWithdraw}
-        disabled={decrypted.isFetching || isWithdrawing || decrypted.data === undefined}
+        disabled={isDecrypting || isWithdrawing || decryptedData === undefined}
         className="btn-primary w-full"
       >
-        {decrypted.isFetching 
+        {isDecrypting 
           ? "Decrypting..." 
           : isWithdrawing 
             ? "Withdrawing..." 
             : "Withdraw"}
       </button>
       
-      {decrypted.data !== undefined && (
+      {decryptedData !== undefined && (
         <div className="text-sm text-green-600">
-          Your salary: ${(Number(decrypted.data) / 100).toFixed(2)} USDC
+          Your salary: ${(Number(decryptedData) / 100).toFixed(2)} USDC
         </div>
       )}
     </div>

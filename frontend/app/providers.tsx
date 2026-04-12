@@ -5,12 +5,6 @@ import { WagmiProvider } from "wagmi";
 import { arbitrumSepolia, baseSepolia, sepolia } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@rainbow-me/rainbowkit/styles.css";
-import dynamic from "next/dynamic";
-
-const CofheProvider = dynamic(
-  () => import("@cofhe/react").then((mod) => mod.CofheProvider),
-  { ssr: false }
-);
 
 const config = getDefaultConfig({
   appName: "Confidro",
@@ -26,9 +20,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider>
-          <CofheProvider>
-             {children}
-          </CofheProvider>
+          {children}
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

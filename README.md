@@ -95,7 +95,7 @@ Confidro removes these barriers by making payroll **confidential by design**.
 │ Frontend (Next.js) │
 │ ┌──────────────┐ ┌──────────────┐ ┌──────────────────────┐ │
 │ │ useEncrypt │ │ useWrite │ │ useDecrypt │ │
-│ │ (@cofhe/react)│ │ (wagmi) │ │ (@cofhe/react) │ │
+│ │ (@cofhe/sdk/web)│ │ (wagmi) │ │ (@cofhe/sdk/web) │ │
 │ └──────┬───────┘ └──────┬───────┘ └──────────┬───────────┘ │
 └─────────┼──────────────────┼─────────────────────┼───────────────┘
 │ │ │
@@ -134,7 +134,7 @@ Confidro removes these barriers by making payroll **confidential by design**.
 | **Encryption** | Fhenix CoFHE + FHE.sol | Fully Homomorphic Encryption |
 | **Smart Contracts** | Solidity ^0.8.24 | FHE-enabled contract logic |
 | **Client SDK** | @cofhe/sdk | Client-side encryption/decryption |
-| **React Hooks** | @cofhe/react | Framework integration |
+| **React Hooks** | @cofhe/sdk/web | Framework integration |
 | **Settlement** | @reineira-os/sdk (Privara) | Cross-chain payment finality |
 | **Dev Environment** | Hardhat + cofhe-hardhat-plugin | Local testing & deployment |
 | **Mock Contracts** | cofhe-mock-contracts | Fast local FHE simulation |
@@ -272,7 +272,7 @@ contract ConfidroPayroll {
 ## Client Integration
 ### React Component Example
 ```tsx
-import { useEncrypt, useDecrypt } from '@cofhe/react';
+import { useEncrypt, useDecrypt } from '@cofhe/sdk/web';
 import { useWriteContract } from 'wagmi';
 
 export function PayrollForm() {

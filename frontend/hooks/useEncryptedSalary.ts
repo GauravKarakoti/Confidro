@@ -1,24 +1,54 @@
-import { useCofheEncrypt } from "@cofhe/react";
+import { createCofheClient, createCofheConfig } from "@cofhe/sdk/web";
 import { Encryptable } from "@cofhe/sdk";
 import { useState } from "react";
+import { usePublicClient, useWalletClient } from "wagmi";
 
 export function useEncryptedSalary() {
-  const { encryptInputsAsync, isEncrypting, error } = useCofheEncrypt();
+  const [isEncrypting, setIsEncrypting] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
   const [lastEncrypted, setLastEncrypted] = useState<any>(null);
 
+  // Fetch Wagmi clients to connect the CoFHE client to the correct network
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+
   const encryptSalary = async (salaryAmount: number) => {
-    // 1. Convert the JS number to a BigInt (required by the Encryptable interface)
-    // 2. Wrap it in the correct FHE type (e.g., uint64). 
-    // Make sure 'uint64' matches the data type expected by your smart contract!
-    const encryptedArray = await encryptInputsAsync([
-      Encryptable.uint64(BigInt(salaryAmount))
-    ]);
-    
-    // Extract the single encrypted value from the returned array
-    const encrypted = encryptedArray[0];
-    
-    setLastEncrypted(encrypted);
-    return encrypted;
+    setIsEncrypting(true);
+    setError(null);
+    try {
+      // 1. Create the web configuration
+      // Note: If you have specific CoFHE chains, you can import them from '@cofhe/sdk/chains' 
+      // and pass them into supportedChains.
+      const config = createCofheConfig({
+        supportedChains: [], 
+        environment: "web"
+      });
+
+      // 2. Initialize the CoFHE web client with the config
+      const client = await createCofheClient(config);
+
+      // 3. Connect the client to Wagmi so it can resolve the active chainId to fetch FHE keys
+      if (publicClient && walletClient) {
+        await client.connect(publicClient as any, walletClient as any);
+      }
+      
+      // 4. Wrap the data and call .execute() instead of .encrypt()
+      const encryptResult = await client.encryptInputs([
+        Encryptable.uint64(BigInt(salaryAmount))
+      ]).execute();
+      
+      // Extract the single encrypted value from the returned array
+      const encrypted = encryptResult[0];
+      
+      setLastEncrypted(encrypted);
+      return encrypted;
+    } catch (err: any) {
+      console.error(err);
+      setError(err);
+      throw err;
+    } finally {
+      setIsEncrypting(false);
+    }
   };
 
   return {
