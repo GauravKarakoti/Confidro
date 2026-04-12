@@ -174,8 +174,7 @@ cp .env.example .env
 ```bash
 # .env.example
 PRIVATE_KEY=your_private_key_here
-BASE_SEPOLIA_RPC=https://sepolia-rollup.base.io/rpc
-COORDINATOR_URL=https://coordinator.reineira.io
+BASE_SEPOLIA_RPC_URL=https://sepolia-rollup.base.io/rpc
 ```
 
 ### Local Development
