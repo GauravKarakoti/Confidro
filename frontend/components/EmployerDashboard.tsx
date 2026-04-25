@@ -27,6 +27,8 @@ import { CONFIDRO_ABI, CONFIDRO_CONTRACT_ADDRESS } from "@/lib/contract";
 type EncryptedInput = {
   ctHash: bigint;
   securityZone: number;
+  utype: number;
+  signature: `0x${string}`;
 };
 
 type TxStatus = "idle" | "encrypting" | "pending" | "success" | "error";
@@ -104,37 +106,36 @@ function AddEmployeeForm({
         setStatus("encrypting");
         setErrorMsg("");
 
-        // Dynamically import CoFHE SDK to avoid SSR issues
-        const { useEncrypt } = await import("@cofhe/sdk/web" as string).catch(
-          () => {
-            // Fallback mock for demo environment when SDK not installed
-            return {
-              useEncrypt: null,
-              FheTypes: { Uint32: "uint32" },
-            };
-          }
-        );
+        // Dynamically import CoFHE SDK web client and root core types
+        const cofheWeb = await import("@cofhe/sdk/web");
+        // @ts-ignore - bypassing potential generic TS resolution issues for core package
+        const cofheCore = await import("@cofhe/sdk");
+        
+        const { createCofheConfig, createCofheClient } = cofheWeb;
+        const { Encryptable } = cofheCore;
 
-        let encryptedSalaryInput: EncryptedInput;
+        // Initialize CoFHE Client bypassing strict supportedChains requirement
+        const config = createCofheConfig({ environment: "web" } as any);
+        const client = await createCofheClient(config);
+        
+        // Real FHE encryption on the client using encryptInputs
+        const encryptedInputs = await client.encryptInputs([
+          Encryptable.uint32(BigInt(salary))
+        ]).execute();
 
-        if (useEncrypt) {
-          // Real encryption path
-          // Note: useEncrypt is a hook; in a real app you'd call this at component level.
-          // For simplicity we mock this flow here to show the pattern.
-          encryptedSalaryInput = {
-            ctHash: BigInt("0x" + Math.floor(Math.random() * 1e15).toString(16)),
-            securityZone: 0,
-          };
-        } else {
-          // Demo fallback
-          encryptedSalaryInput = {
-            ctHash: BigInt("0x" + Math.floor(Math.random() * 1e15).toString(16)),
-            securityZone: 0,
-          };
-        }
+        const encryptedResult = encryptedInputs[0];
+
+        // Format the input based on the updated ABI struct InEuint32
+        const encryptedSalaryInput: EncryptedInput = {
+          ctHash: encryptedResult.ctHash,
+          securityZone: encryptedResult.securityZone,
+          utype: encryptedResult.utype,
+          signature: encryptedResult.signature as `0x${string}`,
+        };
 
         setStatus("pending");
 
+        // Write to contract using exact struct required by new ABI
         const hash = await writeContractAsync({
           address: CONFIDRO_CONTRACT_ADDRESS,
           abi: CONFIDRO_ABI,
@@ -339,31 +340,30 @@ function PayrollCard() {
     try {
       setIsDecrypting(true);
 
-      // Dynamically import to avoid SSR errors
-      const { createCofheClient, createCofheConfig, FheTypes } = await import(
-        "@cofhe/sdk/web" as string
-      ).catch(() => ({ createCofheClient: null, createCofheConfig: null, FheTypes: null }));
+      const cofheWeb = await import("@cofhe/sdk/web");
+      // @ts-ignore
+      const cofheCore = await import("@cofhe/sdk");
+      
+      const { createCofheConfig, createCofheClient } = cofheWeb;
+      const { FheTypes } = cofheCore;
 
-      if (createCofheClient && createCofheConfig && encryptedTotal) {
-        const config = createCofheConfig({ network: "baseSepolia" });
-        const client = await createCofheClient(config);
-        const permit = await client.permits.getOrCreateSelfPermit();
-        const result = await client
-          .decryptForView(encryptedTotal as bigint, FheTypes.Uint32)
-          .withPermit(permit)
-          .execute();
-        setDecryptedTotal(Number(result));
-      } else {
-        // Demo fallback
-        await new Promise((r) => setTimeout(r, 1200));
-        setDecryptedTotal(42500);
+      if (!encryptedTotal) {
+        throw new Error("No encrypted total found.");
       }
 
+      const config = createCofheConfig({ environment: "web" } as any);
+      const client = await createCofheClient(config);
+
+      // Decrypt For View using builder pattern
+      const result = await client
+        .decryptForView(BigInt(encryptedTotal), FheTypes.Uint32)
+        .withPermit() // Automatically handle permits based on connected wallet
+        .execute();
+        
+      setDecryptedTotal(Number(result));
       setShowTotal(true);
     } catch (err) {
       console.error("Decryption failed:", err);
-      setDecryptedTotal(42500); // demo fallback
-      setShowTotal(true);
     } finally {
       setIsDecrypting(false);
     }
@@ -425,7 +425,7 @@ function PayrollCard() {
           </span>
           <button
             onClick={handleRevealTotal}
-            disabled={isDecrypting}
+            disabled={isDecrypting || !encryptedTotal}
             className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
           >
             {isDecrypting ? (

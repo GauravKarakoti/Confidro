@@ -17,6 +17,8 @@ import {
   ArrowDownToLine,
   BadgeCheck,
   Clock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { CONFIDRO_ABI, CONFIDRO_CONTRACT_ADDRESS } from "@/lib/contract";
 
@@ -79,15 +81,74 @@ function EmployeeRow({
 // ──────────────────────────────────────────────
 // Withdraw card
 // ──────────────────────────────────────────────
-function WithdrawCard() {
+function WithdrawCard({
+  connectedAddress,
+  isRegistered,
+}: {
+  connectedAddress?: string;
+  isRegistered: boolean;
+}) {
   const [status, setStatus] = useState<
     "idle" | "pending" | "success" | "error"
   >("idle");
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined);
+  
+  const [showBalance, setShowBalance] = useState(false);
+  const [decryptedBalance, setDecryptedBalance] = useState<number | null>(null);
+  const [isDecrypting, setIsDecrypting] = useState(false);
+
   const { writeContractAsync } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({
     hash: txHash,
   });
+
+  const { data: encryptedSalary } = useReadContract({
+    address: CONFIDRO_CONTRACT_ADDRESS,
+    abi: CONFIDRO_ABI,
+    functionName: "salaries",
+    args: connectedAddress ? [connectedAddress as `0x${string}`] : undefined,
+    query: {
+      enabled: !!connectedAddress && isRegistered,
+    },
+  });
+
+  const handleRevealBalance = async () => {
+    if (showBalance) {
+      setShowBalance(false);
+      setDecryptedBalance(null);
+      return;
+    }
+
+    try {
+      setIsDecrypting(true);
+
+      const cofheWeb = await import("@cofhe/sdk/web");
+      // @ts-ignore
+      const cofheCore = await import("@cofhe/sdk");
+      
+      const { createCofheConfig, createCofheClient } = cofheWeb;
+      const { FheTypes } = cofheCore;
+
+      if (!encryptedSalary) {
+        throw new Error("No encrypted salary found or zero balance.");
+      }
+
+      const config = createCofheConfig({ environment: "web" } as any);
+      const client = await createCofheClient(config);
+
+      const result = await client
+        .decryptForView(BigInt(encryptedSalary), FheTypes.Uint32)
+        .withPermit()
+        .execute();
+        
+      setDecryptedBalance(Number(result));
+      setShowBalance(true);
+    } catch (err) {
+      console.error("Decryption failed:", err);
+    } finally {
+      setIsDecrypting(false);
+    }
+  };
 
   const handleWithdraw = useCallback(async () => {
     try {
@@ -140,28 +201,73 @@ function WithdrawCard() {
           border: "1px solid rgba(0,255,157,0.1)",
         }}
       >
-        <div>
-          <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">
-            Available Balance
+        <div className="w-full">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">
+              Available Balance
+            </span>
+            {isRegistered && (
+              <button
+                onClick={handleRevealBalance}
+                disabled={isDecrypting || !encryptedSalary}
+                className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
+              >
+                {isDecrypting ? (
+                  <>
+                    <Loader2 size={12} className="animate-spin" />
+                    Decrypting...
+                  </>
+                ) : showBalance ? (
+                  <>
+                    <EyeOff size={12} />
+                    Hide
+                  </>
+                ) : (
+                  <>
+                    <Eye size={12} />
+                    Reveal
+                  </>
+                )}
+              </button>
+            )}
           </div>
-          <div
-            className="text-2xl font-bold text-emerald-400"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            ****
+
+          <AnimatePresence mode="wait">
+            {showBalance && decryptedBalance !== null ? (
+              <motion.div
+                key="revealed"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                className="flex items-baseline gap-1"
+              >
+                <span
+                  className="text-3xl font-bold text-emerald-400"
+                  style={{ fontFamily: "var(--font-display)" }}
+                >
+                  ${decryptedBalance.toLocaleString()}
+                </span>
+                <span className="text-sm text-slate-500">USD</span>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="hidden"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-3xl font-bold text-emerald-400 tracking-widest"
+                style={{ fontFamily: "var(--font-display)", marginTop: "-4px" }}
+              >
+                ****
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="text-xs text-slate-600 mt-1.5">
+            {showBalance 
+              ? "Your private balance revealed via FHE decryption"
+              : "Amount is private — encrypted on-chain"}
           </div>
-          <div className="text-xs text-slate-600 mt-0.5">
-            Amount is private — visible only to you after withdrawal
-          </div>
-        </div>
-        <div
-          className="w-12 h-12 rounded-full flex items-center justify-center"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(0,255,157,0.15) 0%, transparent 70%)",
-          }}
-        >
-          <ArrowDownToLine size={22} className="text-emerald-400" />
         </div>
       </div>
 
@@ -199,7 +305,7 @@ function WithdrawCard() {
 
       <button
         onClick={handleWithdraw}
-        disabled={isLoading}
+        disabled={isLoading || !isRegistered}
         className="btn-green w-full"
       >
         {isLoading ? (
@@ -308,7 +414,10 @@ export default function EmployeeDashboard() {
 
       {/* Withdraw — 2 cols */}
       <div className="lg:col-span-2">
-        <WithdrawCard />
+        <WithdrawCard 
+          connectedAddress={connectedAddress} 
+          isRegistered={isRegistered} 
+        />
 
         {!isRegistered && connectedAddress && (
           <motion.div
