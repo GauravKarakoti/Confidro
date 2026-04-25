@@ -85,14 +85,13 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
     }
   };
 
-  // 3. Deposit Budget
   const handleDeposit = async () => {
     if (!hasEscrow) return;
     try {
       await writeContractAsync({
         address: currentEscrow as `0x${string}`,
         abi: ESCROW_ABI,
-        functionName: "deposit",
+        functionName: "depositNative", // <-- Fixed from "deposit"
         value: BigInt(Number(depositAmount) * 1e18), 
       });
       setDepositAmount("");
