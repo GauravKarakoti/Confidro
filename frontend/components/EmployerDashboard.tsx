@@ -21,6 +21,8 @@ import {
   Lock,
   DollarSign,
   TrendingUp,
+  Copy,
+  Check,
 } from "lucide-react";
 import { PAYROLL_ABI } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
@@ -40,6 +42,45 @@ type EncryptedInput = {
 };
 
 type TxStatus = "idle" | "encrypting" | "pending" | "success" | "error";
+
+// ──────────────────────────────────────────────
+// Address Banner
+// ──────────────────────────────────────────────
+function AddressBanner({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div 
+      className="glass rounded-xl p-4 mb-6 flex sm:flex-row flex-col sm:items-center justify-between gap-3 border" 
+      style={{ 
+        background: "rgba(90,41,228,0.05)",
+        borderColor: "rgba(90,41,228,0.2)"
+      }}
+    >
+      <div>
+        <div className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">
+          Organization Contract Address (Share with Employees)
+        </div>
+        <div className="text-sm font-mono text-violet-300 break-all">
+          {address}
+        </div>
+      </div>
+      <button
+        onClick={handleCopy}
+        className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs transition-colors border border-white/10 flex-shrink-0"
+      >
+        {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} className="text-slate-300" />}
+        {copied ? "Copied!" : "Copy Address"}
+      </button>
+    </div>
+  );
+}
 
 // ──────────────────────────────────────────────
 // Stat card
@@ -358,7 +399,7 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         throw new Error("Please connect your wallet first.");
       }
 
-      // 2. Guard against uninitialized ciphertext (0x00...0)
+      // 2. Guard against uninitialized ciphertext
       if (!encryptedTotal || BigInt(encryptedTotal) === BigInt(0)) {
         throw new Error("No payroll data available yet. Add an employee first.");
       }
@@ -378,10 +419,14 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
       // 3. Connect the CoFHE client
       await client.connect(publicClient, walletClient);
 
-      // 4. Decrypt using the automatic active permit resolver
+      // 🟢 FIX 1: Correctly request/retrieve the Permit object from the permits module
+      // This will prompt MetaMask if a valid permit isn't already cached for this chain/account.
+      const permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+
+      // 🟢 FIX 2: Pass the fully resolved permit object directly into the decryption builder
       const result = await client
         .decryptForView(BigInt(encryptedTotal), FheTypes.Uint32)
-        .withPermit() // The SDK automatically handles global permit generation/caching here
+        .withPermit(permit) 
         .execute();
         
       setDecryptedTotal(Number(result));
@@ -579,6 +624,9 @@ export default function EmployerDashboard({ contractAddress }: EmployerDashboard
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
+      {/* Contract Address Banner for quick copy */}
+      <AddressBanner address={contractAddress} />
+
       {/* Stats row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard
