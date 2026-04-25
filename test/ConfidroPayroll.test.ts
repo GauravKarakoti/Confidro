@@ -1,18 +1,18 @@
 import { expect } from "chai";
 import hre from "hardhat";
-// FIX: Import HardhatEthersSigner instead of Signer from ethers
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { Encryptable, FheTypes } from "@cofhe/sdk";
 
 describe("ConfidroPayroll", function () {
   let payroll: any; 
-  // FIX: Use HardhatEthersSigner
   let owner: HardhatEthersSigner;
   let employee1: HardhatEthersSigner;
   let employee2: HardhatEthersSigner;
+  // NEW: Add a signer for the compliance officer
+  let complianceOfficer: HardhatEthersSigner;
 
   beforeEach(async function () {
-    [owner, employee1, employee2] = await hre.ethers.getSigners();
+    [owner, employee1, employee2, complianceOfficer] = await hre.ethers.getSigners();
 
     const ConfidroPayroll = await hre.ethers.getContractFactory("ConfidroPayroll");
     payroll = await ConfidroPayroll.deploy(owner);
@@ -221,7 +221,6 @@ describe("ConfidroPayroll", function () {
     expect(totalErrorOccurred).to.be.true;
   });
 
-  // NEW TEST: Explicitly testing the employer decrypting the total
   it("12. Employer (owner) can successfully decrypt total payroll", async function () {
     // Client specifically for the Employer (owner)
     const fheEmployer = await hre.cofhe.createClientWithBatteries(owner);
@@ -245,5 +244,64 @@ describe("ConfidroPayroll", function () {
     
     // 3000 + 4500 = 7500
     expect(Number(decryptedTotal)).to.equal(7500);
+  });
+
+  // -------------------------------------------------------------------------
+  // NEW: Compliance & Privara Settlement Tests
+  // -------------------------------------------------------------------------
+
+  it("13. Should allow owner to set Privara Escrow and add Compliance Officer", async function () {
+    const dummyEscrowAddress = await employee2.getAddress(); // Mock address for escrow
+    const complianceAddress = await complianceOfficer.getAddress();
+
+    // Set Escrow
+    await expect(payroll.setPrivaraEscrow(dummyEscrowAddress))
+      .to.emit(payroll, "PrivaraEscrowSet")
+      .withArgs(dummyEscrowAddress);
+    
+    expect(await payroll.privaraEscrow()).to.equal(dummyEscrowAddress);
+
+    // Add Compliance Officer
+    await expect(payroll.addCompliance(complianceAddress))
+      .to.emit(payroll, "ComplianceAdded")
+      .withArgs(complianceAddress);
+      
+    expect(await payroll.isCompliance(complianceAddress)).to.be.true;
+  });
+
+  it("14. Selective Disclosure: Compliance Officer can decrypt total payroll but NOT individual salaries", async function () {
+    const fheOwner = await hre.cofhe.createClientWithBatteries(owner);
+    const fheCompliance = await hre.cofhe.createClientWithBatteries(complianceOfficer);
+    
+    const employee1Address = await employee1.getAddress();
+    const complianceAddress = await complianceOfficer.getAddress();
+
+    // 1. Owner adds an employee with a salary
+    const [encryptedSalary] = await fheOwner.encryptInputs([Encryptable.uint32(8200n)]).execute();
+    await payroll.addEmployee(employee1Address, encryptedSalary);
+
+    // 2. Owner assigns the compliance role. 
+    // This dynamically triggers `FHE.allow(totalPayroll, officer)`
+    await payroll.addCompliance(complianceAddress);
+
+    // 3. Compliance Officer fetches the total payroll ciphertext
+    const encryptedTotal = await payroll.getEncryptedTotal();
+
+    // Compliance Officer successfully decrypts the total
+    const decryptedTotal = await fheCompliance.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+    expect(Number(decryptedTotal)).to.equal(8200);
+
+    // 4. Compliance Officer attempts to decrypt the individual employee's salary
+    const storedSalary = await payroll.salaries(employee1Address);
+    
+    let unauthorizedAccessCaught = false;
+    try {
+      await fheCompliance.decryptForView(storedSalary, FheTypes.Uint32).execute();
+    } catch (error) {
+      unauthorizedAccessCaught = true;
+    }
+    
+    // The library should throw an error because the compliance officer lacks permission for `salaries`
+    expect(unauthorizedAccessCaught).to.be.true;
   });
 });

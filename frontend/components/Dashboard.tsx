@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ConnectKitButton } from "connectkit";
-import { Briefcase, User, ShieldCheck, Wallet, Plus, Loader2 } from "lucide-react";
+import { Briefcase, User, ShieldCheck, ShieldAlert, Wallet, Plus, Loader2 } from "lucide-react";
 import EmployerDashboard from "./EmployerDashboard";
 import EmployeeDashboard from "./EmployeeDashboard";
+import ComplianceDashboard from "./ComplianceDashboard";
 import { FACTORY_ABI, FACTORY_CONTRACT_ADDRESS } from "@/lib/contract";
 
-type Role = "employer" | "employee";
+type Role = "employer" | "employee" | "compliance";
 
 function RoleToggle({
   role,
@@ -20,39 +21,37 @@ function RoleToggle({
 }) {
   return (
     <div
-      className="relative flex p-1 rounded-xl"
+      className="relative flex p-1 rounded-xl w-full sm:w-auto"
       style={{
         background: "rgba(18,18,30,0.8)",
         border: "1px solid rgba(90,41,228,0.2)",
       }}
     >
-      {/* Sliding indicator */}
+      {/* Sliding indicator adjusted for 3 items */}
       <motion.div
         layoutId="roleIndicator"
         className="absolute top-1 bottom-1 rounded-lg"
         style={{
           background: "linear-gradient(135deg, #5A29E4 0%, #7B4FF0 100%)",
-          width: "calc(50% - 2px)",
-          left: role === "employer" ? "4px" : "calc(50% + 2px)",
+          width: "calc(33.33% - 2.6px)",
+          left: role === "employer" ? "4px" : role === "employee" ? "calc(33.33% + 1px)" : "calc(66.66% - 1px)",
         }}
         transition={{ type: "spring", stiffness: 400, damping: 30 }}
       />
 
-      {(["employer", "employee"] as Role[]).map((r) => (
+      {(["employer", "employee", "compliance"] as Role[]).map((r) => (
         <button
           key={r}
           onClick={() => onChange(r)}
-          className="relative z-10 flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 flex-1 justify-center"
+          className="relative z-10 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 flex-1 justify-center whitespace-nowrap"
           style={{
             color: role === r ? "white" : "rgba(160,160,190,0.7)",
             fontFamily: "var(--font-body)",
           }}
         >
-          {r === "employer" ? (
-            <Briefcase size={14} />
-          ) : (
-            <User size={14} />
-          )}
+          {r === "employer" && <Briefcase size={14} />}
+          {r === "employee" && <User size={14} />}
+          {r === "compliance" && <ShieldAlert size={14} />}
           {r.charAt(0).toUpperCase() + r.slice(1)}
         </button>
       ))}
@@ -64,8 +63,8 @@ export default function Dashboard() {
   const { isConnected, address } = useAccount();
   const [role, setRole] = useState<Role>("employer");
   
-  // State for Employee view to enter their Org address
-  const [employeeOrgInput, setEmployeeOrgInput] = useState("");
+  // State for Employee/Compliance view to enter their Org address
+  const [orgInput, setOrgInput] = useState("");
   const [activeOrgAddress, setActiveOrgAddress] = useState<`0x${string}` | null>(null);
 
   // Read Factory Contract to get Employer's deployed organizations
@@ -181,14 +180,14 @@ export default function Dashboard() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
+          className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8"
         >
           <div>
             <h1
-              className="text-2xl sm:text-3xl font-bold text-white"
+              className="text-2xl sm:text-3xl font-bold text-white capitalize"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              {role === "employer" ? "Employer" : "Employee"} Dashboard
+              {role} Dashboard
             </h1>
             <div className="flex items-center gap-2 mt-1">
               <Wallet size={12} className="text-slate-500" />
@@ -213,12 +212,10 @@ export default function Dashboard() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3 }}
           >
-            {role === "employer" ? (
+            {role === "employer" && (
               activeOrgAddress ? (
-                // Employer has an organization -> Show Dashboard
                 <EmployerDashboard contractAddress={activeOrgAddress} />
               ) : (
-                // Employer has NO organization -> Show Deploy Button
                 <div className="glass rounded-2xl p-10 text-center max-w-md mx-auto mt-12">
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6" style={{ background: "rgba(90,41,228,0.1)" }}>
                     <Briefcase size={32} className="text-violet-400" />
@@ -239,28 +236,61 @@ export default function Dashboard() {
                   </button>
                 </div>
               )
-            ) : (
-              // Employee View
+            )}
+
+            {role === "employee" && (
               activeOrgAddress ? (
-                <EmployeeDashboard />
+                <EmployeeDashboard /> 
               ) : (
                 <div className="glass rounded-2xl p-8 max-w-md mx-auto mt-12">
-                  <h3 className="text-xl font-bold text-white mb-2" style={{ fontFamily: "var(--font-display)" }}>Access Organization</h3>
-                  <p className="text-sm text-slate-400 mb-6">Enter the payroll contract address provided by your employer.</p>
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6" style={{ background: "rgba(10,92,62,0.1)" }}>
+                    <User size={32} className="text-emerald-400" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2 text-center" style={{ fontFamily: "var(--font-display)" }}>Access Organization</h3>
+                  <p className="text-sm text-slate-400 mb-6 text-center">Enter the payroll contract address provided by your employer.</p>
                   
                   <input
                     type="text"
                     placeholder="0x..."
-                    value={employeeOrgInput}
-                    onChange={(e) => setEmployeeOrgInput(e.target.value)}
+                    value={orgInput}
+                    onChange={(e) => setOrgInput(e.target.value)}
                     className="input-field mb-4"
                   />
                   <button 
-                    onClick={() => setActiveOrgAddress(employeeOrgInput as `0x${string}`)}
-                    className="btn-primary w-full"
-                    disabled={!employeeOrgInput.startsWith('0x')}
+                    onClick={() => setActiveOrgAddress(orgInput as `0x${string}`)}
+                    className="btn-green w-full"
+                    disabled={!orgInput.startsWith('0x')}
                   >
                     Connect to Organization
+                  </button>
+                </div>
+              )
+            )}
+
+            {role === "compliance" && (
+              activeOrgAddress ? (
+                <ComplianceDashboard contractAddress={activeOrgAddress} />
+              ) : (
+                <div className="glass rounded-2xl p-8 max-w-md mx-auto mt-12 border-violet-500/20 border">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6" style={{ background: "rgba(90,41,228,0.1)" }}>
+                    <ShieldAlert size={32} className="text-violet-400" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2 text-center" style={{ fontFamily: "var(--font-display)" }}>Compliance Audit Portal</h3>
+                  <p className="text-sm text-slate-400 mb-6 text-center">Enter the organization's contract address to access the aggregated payroll ledger.</p>
+                  
+                  <input
+                    type="text"
+                    placeholder="0x..."
+                    value={orgInput}
+                    onChange={(e) => setOrgInput(e.target.value)}
+                    className="input-field mb-4 focus:ring-violet-500"
+                  />
+                  <button 
+                    onClick={() => setActiveOrgAddress(orgInput as `0x${string}`)}
+                    className="btn-primary w-full"
+                    disabled={!orgInput.startsWith('0x')}
+                  >
+                    Authenticate Ledger
                   </button>
                 </div>
               )

@@ -143,6 +143,19 @@ export const PAYROLL_ABI = [
         {
           "indexed": true,
           "internalType": "address",
+          "name": "officer",
+          "type": "address"
+        }
+      ],
+      "name": "ComplianceAdded",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "employee",
           "type": "address"
         },
@@ -175,6 +188,19 @@ export const PAYROLL_ABI = [
         {
           "indexed": true,
           "internalType": "address",
+          "name": "escrowAddress",
+          "type": "address"
+        }
+      ],
+      "name": "PrivaraEscrowSet",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "employee",
           "type": "address"
         },
@@ -187,6 +213,19 @@ export const PAYROLL_ABI = [
       ],
       "name": "SalaryWithdrawn",
       "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "officer",
+          "type": "address"
+        }
+      ],
+      "name": "addCompliance",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
     },
     {
       "inputs": [
@@ -274,6 +313,19 @@ export const PAYROLL_ABI = [
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "getTotalForCompliance",
+      "outputs": [
+        {
+          "internalType": "euint32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -293,8 +345,40 @@ export const PAYROLL_ABI = [
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "isCompliance",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "privaraEscrow",
       "outputs": [
         {
           "internalType": "address",
@@ -329,6 +413,19 @@ export const PAYROLL_ABI = [
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_escrow",
+          "type": "address"
+        }
+      ],
+      "name": "setPrivaraEscrow",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

@@ -23,6 +23,8 @@ import {
   TrendingUp,
   Copy,
   Check,
+  ShieldCheck,
+  Anchor
 } from "lucide-react";
 import { PAYROLL_ABI } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
@@ -42,6 +44,54 @@ type EncryptedInput = {
 };
 
 type TxStatus = "idle" | "encrypting" | "pending" | "success" | "error";
+
+function ConfigurationPanel({ contractAddress }: { contractAddress: `0x${string}` }) {
+  const [officer, setOfficer] = useState("");
+  const [escrow, setEscrow] = useState("");
+  const { writeContractAsync } = useWriteContract();
+
+  const handleAddCompliance = async () => {
+    await writeContractAsync({
+      address: contractAddress,
+      abi: PAYROLL_ABI,
+      functionName: "addCompliance",
+      args: [officer as `0x${string}`],
+    });
+  };
+
+  const handleSetEscrow = async () => {
+    await writeContractAsync({
+      address: contractAddress,
+      abi: PAYROLL_ABI,
+      functionName: "setPrivaraEscrow",
+      args: [escrow as `0x${string}`],
+    });
+  };
+
+  return (
+    <div className="glass rounded-2xl p-6 space-y-6 mt-6">
+      <h3 className="font-bold text-white flex items-center gap-2">
+        <ShieldCheck className="text-violet-400" /> Administrative Config
+      </h3>
+      <div className="flex gap-2">
+        <input 
+          placeholder="Compliance Officer Address" 
+          className="input-field flex-1" 
+          onChange={(e) => setOfficer(e.target.value)} 
+        />
+        <button onClick={handleAddCompliance} className="btn-primary">Add Role</button>
+      </div>
+      <div className="flex gap-2">
+        <input 
+          placeholder="Privara Escrow Address" 
+          className="input-field flex-1" 
+          onChange={(e) => setEscrow(e.target.value)} 
+        />
+        <button onClick={handleSetEscrow} className="btn-primary">Set Escrow</button>
+      </div>
+    </div>
+  );
+}
 
 // ──────────────────────────────────────────────
 // Address Banner
@@ -648,6 +698,10 @@ export default function EmployerDashboard({ contractAddress }: EmployerDashboard
         <AddEmployeeForm employeeCount={employeeList.length} contractAddress={contractAddress} />
         <PayrollCard contractAddress={contractAddress} />
       </div>
+
+      {/* ADD THE CONFIGURATION PANEL HERE */}
+      <ConfigurationPanel contractAddress={contractAddress} />
+      
     </motion.div>
   );
 }
