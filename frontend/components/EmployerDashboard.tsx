@@ -6,6 +6,9 @@ import {
   useWriteContract,
   useReadContract,
   useWaitForTransactionReceipt,
+  usePublicClient,
+  useWalletClient,
+  useAccount,
 } from "wagmi";
 import {
   UserPlus,
@@ -20,6 +23,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { CONFIDRO_ABI, CONFIDRO_CONTRACT_ADDRESS } from "@/lib/contract";
+import { baseSepolia } from "@cofhe/sdk/chains";
 
 // ──────────────────────────────────────────────
 // Types
@@ -78,18 +82,16 @@ function StatCard({
   );
 }
 
-// ──────────────────────────────────────────────
-// Add Employee form
-// ──────────────────────────────────────────────
-function AddEmployeeForm({
-  employeeCount,
-}: {
-  employeeCount: number;
-}) {
+function AddEmployeeForm({ employeeCount }: { employeeCount: number }) {
   const [address, setAddress] = useState("");
   const [salary, setSalary] = useState("");
   const [status, setStatus] = useState<TxStatus>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // 1. Fetch wallet clients from Wagmi
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  const { address: userAddress, chainId } = useAccount();
 
   const { writeContractAsync } = useWriteContract();
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined);
@@ -106,17 +108,25 @@ function AddEmployeeForm({
         setStatus("encrypting");
         setErrorMsg("");
 
-        // Dynamically import CoFHE SDK web client and root core types
+        // 2. Ensure wallet is connected
+        if (!publicClient || !walletClient || !userAddress || !chainId) {
+          throw new Error("Please connect your wallet first.");
+        }
+
         const cofheWeb = await import("@cofhe/sdk/web");
-        // @ts-ignore - bypassing potential generic TS resolution issues for core package
         const cofheCore = await import("@cofhe/sdk");
         
         const { createCofheConfig, createCofheClient } = cofheWeb;
         const { Encryptable } = cofheCore;
 
-        // Initialize CoFHE Client bypassing strict supportedChains requirement
-        const config = createCofheConfig({ environment: "web" } as any);
+        const config = createCofheConfig({ 
+          environment: "web",
+          supportedChains: [baseSepolia]
+        });
         const client = await createCofheClient(config);
+        
+        // 3. Connect the CoFHE client to the user's wallet
+        await client.connect(publicClient, walletClient);
         
         // Real FHE encryption on the client using encryptInputs
         const encryptedInputs = await client.encryptInputs([
@@ -318,6 +328,9 @@ function PayrollCard() {
   const [processTxHash, setProcessTxHash] = useState<`0x${string}` | undefined>(
     undefined
   );
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  const { address: userAddress, chainId } = useAccount();
 
   const { writeContractAsync } = useWriteContract();
   const { isLoading: isProcessConfirming } = useWaitForTransactionReceipt({
@@ -340,24 +353,35 @@ function PayrollCard() {
     try {
       setIsDecrypting(true);
 
+      // 1. Ensure wallet is connected
+      if (!publicClient || !walletClient || !userAddress || !chainId) {
+        throw new Error("Please connect your wallet first.");
+      }
+
+      // 2. Guard against uninitialized ciphertext (0x00...0)
+      if (!encryptedTotal || BigInt(encryptedTotal) === BigInt(0)) {
+        throw new Error("No payroll data available yet. Add an employee first.");
+      }
+
       const cofheWeb = await import("@cofhe/sdk/web");
-      // @ts-ignore
       const cofheCore = await import("@cofhe/sdk");
       
       const { createCofheConfig, createCofheClient } = cofheWeb;
       const { FheTypes } = cofheCore;
 
-      if (!encryptedTotal) {
-        throw new Error("No encrypted total found.");
-      }
-
-      const config = createCofheConfig({ environment: "web" } as any);
+      const config = createCofheConfig({ 
+        environment: "web",
+        supportedChains: [baseSepolia]
+      });
       const client = await createCofheClient(config);
 
-      // Decrypt For View using builder pattern
+      // 3. Connect the CoFHE client
+      await client.connect(publicClient, walletClient);
+
+      // 4. Decrypt using the automatic active permit resolver
       const result = await client
         .decryptForView(BigInt(encryptedTotal), FheTypes.Uint32)
-        .withPermit() // Automatically handle permits based on connected wallet
+        .withPermit() // The SDK automatically handles global permit generation/caching here
         .execute();
         
       setDecryptedTotal(Number(result));

@@ -21,6 +21,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { CONFIDRO_ABI, CONFIDRO_CONTRACT_ADDRESS } from "@/lib/contract";
+import { baseSepolia } from "@cofhe/sdk/chains";
 
 // ──────────────────────────────────────────────
 // Employee row
@@ -133,7 +134,10 @@ function WithdrawCard({
         throw new Error("No encrypted salary found or zero balance.");
       }
 
-      const config = createCofheConfig({ environment: "web" } as any);
+      const config = createCofheConfig({ 
+        environment: "web",
+        supportedChains: [baseSepolia]
+      });
       const client = await createCofheClient(config);
 
       const result = await client

@@ -1,11 +1,19 @@
 {
-	"compilerOptions": {
-		"target": "es2020",
-		"module": "Node16",
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
-		"strict": true,
-		"skipLibCheck": true,
-		"resolveJsonModule": true
-	}
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "Node16",
+    "moduleResolution": "node16",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["mocha", "chai", "node"]
+  },
+  "include": [
+    "hardhat.config.ts",
+    "test/**/*.ts",
+    "tasks/**/*.ts",
+    "scripts/**/*.ts"
+  ]
 }

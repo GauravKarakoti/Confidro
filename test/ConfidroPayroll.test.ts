@@ -17,6 +17,17 @@ describe("ConfidroPayroll", function () {
     await payroll.waitForDeployment();
   });
 
+  it("0. Should initialize total payroll to 0 on deployment", async function () {
+    const fhe = await hre.cofhe.createClientWithBatteries();
+    
+    // Verify that the constructor properly initialized the FHE ciphertext
+    // and granted the owner read access
+    const encryptedTotal = await payroll.getEncryptedTotal();
+    const decryptedTotal = await fhe.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+    
+    expect(Number(decryptedTotal)).to.equal(0);
+  });
+
   it("1. Should add employee with encrypted salary", async function () {
     const fhe = await hre.cofhe.createClientWithBatteries();
     const employee1Address = await employee1.getAddress();
