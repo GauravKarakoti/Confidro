@@ -1,6 +1,7 @@
-export const CONTRACT_ADDRESS = "0xB0Aa5aE8087b7536457847b861286E956C7A1457";
+export const CONFIDRO_CONTRACT_ADDRESS =
+  (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`);
 
-export const CONTRACT_ABI = [
+export const CONFIDRO_ABI = [
     {
       "inputs": [],
       "stateMutability": "nonpayable",

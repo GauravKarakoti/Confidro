@@ -1,25 +1,43 @@
 "use client";
 
-import { RainbowKitProvider, getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { WagmiProvider } from "wagmi";
-import { arbitrumSepolia, baseSepolia, sepolia } from "wagmi/chains";
+import { WagmiProvider, createConfig, http } from "wagmi";
+import { baseSepolia } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  RainbowKitProvider,
+  getDefaultWallets,
+  darkTheme,
+} from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
+import { ReactNode, useState } from "react";
 
-const config = getDefaultConfig({
+const { connectors } = getDefaultWallets({
   appName: "Confidro",
-  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID!, // Get from https://cloud.walletconnect.com
-  chains: [arbitrumSepolia, baseSepolia, sepolia],
-  ssr: true,
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? "confidro_demo",
 });
 
-const queryClient = new QueryClient();
+const wagmiConfig = createConfig({
+  chains: [baseSepolia],
+  connectors,
+  transports: {
+    [baseSepolia.id]: http(),
+  },
+});
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
+
   return (
-    <WagmiProvider config={config}>
+    <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
+        <RainbowKitProvider
+          theme={darkTheme({
+            accentColor: "#5A29E4",
+            accentColorForeground: "white",
+            borderRadius: "medium",
+            fontStack: "system",
+          })}
+        >
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>
