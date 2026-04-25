@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "./ConfidroPayroll.sol";
+import "./ConfidroEscrow.sol";
 
 contract ConfidroPayrollFactory {
     // Keep track of all deployed contracts for analytics/admin
@@ -26,6 +27,11 @@ contract ConfidroPayrollFactory {
         emit OrganizationCreated(msg.sender, contractAddress);
         
         return contractAddress;
+    }
+
+    function createEscrow(address payrollContract, address paymentTokenAddress) public returns (address) {
+        ConfidroEscrow newEscrow = new ConfidroEscrow(msg.sender, payrollContract, paymentTokenAddress);
+        return address(newEscrow);
     }
     
     // Helper for the UI to quickly fetch an employer's contracts

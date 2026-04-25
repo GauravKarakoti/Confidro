@@ -26,7 +26,7 @@ import {
   ShieldCheck,
   Anchor
 } from "lucide-react";
-import { PAYROLL_ABI } from "@/lib/contract";
+import { ESCROW_ABI, FACTORY_ABI, FACTORY_CONTRACT_ADDRESS, PAYROLL_ABI } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
 
 interface EmployerDashboardProps {
@@ -45,10 +45,19 @@ type EncryptedInput = {
 
 type TxStatus = "idle" | "encrypting" | "pending" | "success" | "error";
 
-function ConfigurationPanel({ contractAddress }: { contractAddress: `0x${string}` }) {
+function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` }) {
   const [officer, setOfficer] = useState("");
-  const [escrow, setEscrow] = useState("");
+  const [depositAmount, setDepositAmount] = useState("");
   const { writeContractAsync } = useWriteContract();
+
+  // 1. Read existing Escrow Address from Payroll Contract
+  const { data: currentEscrow } = useReadContract({
+    address: contractAddress,
+    abi: PAYROLL_ABI,
+    functionName: "privaraEscrow",
+  });
+
+  const hasEscrow = currentEscrow && currentEscrow !== "0x0000000000000000000000000000000000000000";
 
   const handleAddCompliance = async () => {
     await writeContractAsync({
@@ -59,35 +68,86 @@ function ConfigurationPanel({ contractAddress }: { contractAddress: `0x${string}
     });
   };
 
-  const handleSetEscrow = async () => {
-    await writeContractAsync({
-      address: contractAddress,
-      abi: PAYROLL_ABI,
-      functionName: "setPrivaraEscrow",
-      args: [escrow as `0x${string}`],
-    });
+  // 2. Deploy Escrow using Factory
+  const handleDeployEscrow = async () => {
+    try {
+      const hash = await writeContractAsync({
+        address: FACTORY_CONTRACT_ADDRESS,
+        abi: FACTORY_ABI,
+        functionName: "createEscrow",
+        args: [contractAddress],
+      });
+      
+      console.log("Deploy tx:", hash);
+      alert("Escrow deploying! Please check your wallet/explorer. You'll need to link it once confirmed.");
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // 3. Deposit Budget
+  const handleDeposit = async () => {
+    if (!hasEscrow) return;
+    try {
+      await writeContractAsync({
+        address: currentEscrow as `0x${string}`,
+        abi: ESCROW_ABI,
+        functionName: "deposit",
+        value: BigInt(Number(depositAmount) * 1e18), 
+      });
+      setDepositAmount("");
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
     <div className="glass rounded-2xl p-6 space-y-6 mt-6">
       <h3 className="font-bold text-white flex items-center gap-2">
-        <ShieldCheck className="text-violet-400" /> Administrative Config
+        <ShieldCheck className="text-violet-400" /> Admin & Escrow Management
       </h3>
+      
       <div className="flex gap-2">
         <input 
           placeholder="Compliance Officer Address" 
           className="input-field flex-1" 
+          value={officer}
           onChange={(e) => setOfficer(e.target.value)} 
         />
         <button onClick={handleAddCompliance} className="btn-primary">Add Role</button>
       </div>
-      <div className="flex gap-2">
-        <input 
-          placeholder="Privara Escrow Address" 
-          className="input-field flex-1" 
-          onChange={(e) => setEscrow(e.target.value)} 
-        />
-        <button onClick={handleSetEscrow} className="btn-primary">Set Escrow</button>
+
+      <div className="border-t border-white/10 pt-4 mt-4">
+        <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+          <Anchor size={14} className="text-emerald-400" /> Escrow Budget Wallet
+        </h4>
+        
+        {!hasEscrow ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-xs text-slate-400">You don't have an escrow wallet set up for this organization. Deploy one to deposit payroll budgets.</p>
+            <button onClick={handleDeployEscrow} className="btn-primary w-full sm:w-auto">
+              Deploy Organization Escrow
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-white/5 p-3 rounded-lg border border-white/10 text-xs font-mono text-slate-300 break-all">
+              <span className="text-emerald-400 block mb-1">Active Escrow Address:</span>
+              {String(currentEscrow)}
+            </div>
+            
+            <div className="flex gap-2">
+              <input 
+                type="number"
+                placeholder="Deposit Budget Amount (ETH/Tokens)" 
+                className="input-field flex-1" 
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)} 
+              />
+              <button onClick={handleDeposit} className="btn-green">Deposit Budget</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -183,7 +243,6 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
   const [status, setStatus] = useState<TxStatus>("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
-  // 1. Fetch wallet clients from Wagmi
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { address: userAddress, chainId } = useAccount();
@@ -203,7 +262,6 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
         setStatus("encrypting");
         setErrorMsg("");
 
-        // 2. Ensure wallet is connected
         if (!publicClient || !walletClient || !userAddress || !chainId) {
           throw new Error("Please connect your wallet first.");
         }
@@ -220,17 +278,14 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
         });
         const client = await createCofheClient(config);
         
-        // 3. Connect the CoFHE client to the user's wallet
         await client.connect(publicClient, walletClient);
         
-        // Real FHE encryption on the client using encryptInputs
         const encryptedInputs = await client.encryptInputs([
           Encryptable.uint32(BigInt(salary))
         ]).execute();
 
         const encryptedResult = encryptedInputs[0];
 
-        // Format the input based on the updated ABI struct InEuint32
         const encryptedSalaryInput: EncryptedInput = {
           ctHash: encryptedResult.ctHash,
           securityZone: encryptedResult.securityZone,
@@ -241,8 +296,8 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
         setStatus("pending");
 
         const hash = await writeContractAsync({
-          address: contractAddress, // USE PROP HERE
-          abi: PAYROLL_ABI,         // USE NEW ABI NAME
+          address: contractAddress, 
+          abi: PAYROLL_ABI,         
           functionName: "addEmployee",
           args: [address as `0x${string}`, encryptedSalaryInput],
         });
@@ -261,7 +316,7 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
         setTimeout(() => setStatus("idle"), 5000);
       }
     },
-    [address, salary, writeContractAsync]
+    [address, salary, writeContractAsync, contractAddress, publicClient, walletClient, userAddress, chainId]
   );
 
   const isLoading =
@@ -337,7 +392,6 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
           </p>
         </div>
 
-        {/* Status messages */}
         <AnimatePresence>
           {status === "encrypting" && (
             <motion.div
@@ -429,8 +483,8 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
   });
 
   const { data: encryptedTotal } = useReadContract({
-    address: contractAddress,  // USE PROP HERE
-    abi: PAYROLL_ABI,          // USE NEW ABI NAME
+    address: contractAddress,  
+    abi: PAYROLL_ABI,          
     functionName: "getEncryptedTotal",
   });
 
@@ -486,8 +540,8 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
     try {
       setProcessStatus("pending");
       const hash = await writeContractAsync({
-        address: contractAddress, // USE PROP HERE
-        abi: PAYROLL_ABI,         // USE NEW ABI NAME
+        address: contractAddress, 
+        abi: PAYROLL_ABI,         
         functionName: "processPayroll",
         args: [],
       });
@@ -524,7 +578,6 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         </div>
       </div>
 
-      {/* Encrypted total reveal */}
       <div
         className="rounded-xl p-4 mb-4"
         style={{
@@ -606,7 +659,6 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         )}
       </div>
 
-      {/* Process payroll */}
       <AnimatePresence>
         {processStatus === "success" && (
           <motion.div
@@ -655,8 +707,8 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
 
 export default function EmployerDashboard({ contractAddress }: EmployerDashboardProps) {
   const { data: employees } = useReadContract({
-    address: contractAddress, // USE PROP HERE
-    abi: PAYROLL_ABI,         // USE NEW ABI NAME
+    address: contractAddress, 
+    abi: PAYROLL_ABI,         
     functionName: "getEmployees",
   });
 
@@ -668,10 +720,8 @@ export default function EmployerDashboard({ contractAddress }: EmployerDashboard
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Contract Address Banner for quick copy */}
       <AddressBanner address={contractAddress} />
 
-      {/* Stats row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard
           icon={UserPlus}
@@ -694,13 +744,11 @@ export default function EmployerDashboard({ contractAddress }: EmployerDashboard
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pass the address down to child components */}
         <AddEmployeeForm employeeCount={employeeList.length} contractAddress={contractAddress} />
         <PayrollCard contractAddress={contractAddress} />
       </div>
 
-      {/* ADD THE CONFIGURATION PANEL HERE */}
-      <ConfigurationPanel contractAddress={contractAddress} />
+      <EscrowManagement contractAddress={contractAddress} />
       
     </motion.div>
   );
