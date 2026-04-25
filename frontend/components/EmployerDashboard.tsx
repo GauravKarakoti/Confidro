@@ -243,8 +243,11 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
         
         await client.connect(publicClient, walletClient);
         
+        const decimals = currency === "0" ? 18 : 6; // ETH (18) vs USDC (6)
+        const salaryInBaseUnits = Math.floor(Number(salary) * Math.pow(10, decimals));
+
         const encryptedInputs = await client.encryptInputs([
-          Encryptable.uint32(BigInt(salary))
+          Encryptable.uint64(BigInt(salaryInBaseUnits)) 
         ]).execute();
 
         const encryptedResult = encryptedInputs[0];
@@ -437,8 +440,8 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
 
         // Execute decryption
         const [resETH, resUSDC] = await Promise.all([
-            client.decryptForView(encETH, FheTypes.Uint32).withPermit(permit).execute(),
-            client.decryptForView(encUSDC, FheTypes.Uint32).withPermit(permit).execute()
+            client.decryptForView(encETH, FheTypes.Uint64).withPermit(permit).execute(),
+            client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute()
         ]);
           
         setDecryptedETH(Number(resETH));

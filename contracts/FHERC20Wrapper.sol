@@ -11,7 +11,7 @@ contract FHERC20Wrapper {
     IERC20 public immutable underlying;
     uint8 public immutable decimals;
 
-    mapping(address => euint32) internal _balances;
+    mapping(address => euint64) internal _balances;
     mapping(address => mapping(address => uint256)) public allowances;
 
     constructor(address _underlying, uint8 _decimals) {
@@ -22,7 +22,7 @@ contract FHERC20Wrapper {
     function wrap(uint256 amount) external {
         underlying.safeTransferFrom(msg.sender, address(this), amount);
         
-        euint32 encryptedAmount = FHE.asEuint32(amount);
+        euint64 encryptedAmount = FHE.asEuint64(amount);
         if (FHE.isInitialized(_balances[msg.sender])) {
             _balances[msg.sender] = FHE.add(_balances[msg.sender], encryptedAmount);
         } else {
@@ -34,7 +34,7 @@ contract FHERC20Wrapper {
     }
 
     function unwrap(uint256 amount) external {
-        euint32 encryptedAmount = FHE.asEuint32(amount);
+        euint64 encryptedAmount = FHE.asEuint64(amount);
         
         // FIX: Replaced FHE.req with an FHE.select pattern or internal check
         // Since FHE.req is missing, we perform a subtraction that saturates at 0 
@@ -44,7 +44,7 @@ contract FHERC20Wrapper {
         ebool canUnwrap = FHE.lte(encryptedAmount, _balances[msg.sender]);
         
         // If they have enough, subtract 'amount', otherwise subtract 0
-        euint32 amountToSubtract = FHE.select(canUnwrap, encryptedAmount, FHE.asEuint32(0));
+        euint64 amountToSubtract = FHE.select(canUnwrap, encryptedAmount, FHE.asEuint64(0));
         _balances[msg.sender] = FHE.sub(_balances[msg.sender], amountToSubtract);
         
         FHE.allowThis(_balances[msg.sender]);
@@ -60,12 +60,12 @@ contract FHERC20Wrapper {
         return true;
     }
 
-    function transfer(address to, euint32 amount) external {
+    function transfer(address to, euint64 amount) external {
         _transfer(msg.sender, to, amount);
     }
 
     function transfer(address to, uint256 amount) external {
-        euint32 encryptedAmount = FHE.asEuint32(amount);
+        euint64 encryptedAmount = FHE.asEuint64(amount);
         _transfer(msg.sender, to, encryptedAmount);
     }
 
@@ -73,14 +73,14 @@ contract FHERC20Wrapper {
         require(allowances[from][msg.sender] >= amount, "Insufficient wrapper allowance");
         allowances[from][msg.sender] -= amount;
 
-        euint32 encryptedAmount = FHE.asEuint32(amount);
+        euint64 encryptedAmount = FHE.asEuint64(amount);
         _transfer(from, to, encryptedAmount);
     }
 
-    function _transfer(address from, address to, euint32 amount) internal {
+    function _transfer(address from, address to, euint64 amount) internal {
         // FIX: Replaced FHE.req(FHE.lte(...)) with select pattern
         ebool hasBalance = FHE.lte(amount, _balances[from]);
-        euint32 amountToMove = FHE.select(hasBalance, amount, FHE.asEuint32(0));
+        euint64 amountToMove = FHE.select(hasBalance, amount, FHE.asEuint64(0));
 
         _balances[from] = FHE.sub(_balances[from], amountToMove);
         
@@ -96,7 +96,7 @@ contract FHERC20Wrapper {
         FHE.allow(_balances[to], to);
     }
 
-    function getEncryptedBalance(address account) external view returns (euint32) {
+    function getEncryptedBalance(address account) external view returns (euint64) {
         return _balances[account];
     }
 }

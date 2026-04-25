@@ -4,26 +4,26 @@ pragma solidity ^0.8.24;
 import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 interface IPrivaraEscrow {
-    function distribute(address[] memory employees, euint32[] memory amounts, uint8[] memory currencies) external;
+    function distribute(address[] memory employees, euint64[] memory amounts, uint8[] memory currencies) external;
 }
 
 contract ConfidroPayroll {
     address public owner;
     
-    mapping(address => euint32) public salaries;
+    mapping(address => euint64) public salaries;
     mapping(address => bool) public hasActiveSalary;
     mapping(address => uint8) public paymentCurrency; // 0 = ETH, 1 = USDC
     
-    euint32 public totalPayrollETH;
-    euint32 public totalPayrollUSDC;
+    euint64 public totalPayrollETH;
+    euint64 public totalPayrollUSDC;
     
     address[] public employeeList;
     mapping(address => bool) public isCompliance;
     address public privaraEscrow;
 
-    event EmployeeAdded(address indexed employee, euint32 encryptedSalary, uint8 currency);
+    event EmployeeAdded(address indexed employee, euint64 encryptedSalary, uint8 currency);
     event PayrollProcessed(uint256 timestamp);
-    event SalaryWithdrawn(address indexed employee, euint32 amount, uint8 currency);
+    event SalaryWithdrawn(address indexed employee, euint64 amount, uint8 currency);
     event ComplianceAdded(address indexed officer);
     event PrivaraEscrowSet(address indexed escrowAddress);
 
@@ -34,8 +34,8 @@ contract ConfidroPayroll {
 
     constructor(address _owner) {
         owner = _owner;
-        totalPayrollETH = FHE.asEuint32(0);
-        totalPayrollUSDC = FHE.asEuint32(0);
+        totalPayrollETH = FHE.asEuint64(0);
+        totalPayrollUSDC = FHE.asEuint64(0);
         
         FHE.allowThis(totalPayrollETH);
         FHE.allow(totalPayrollETH, owner);
@@ -56,16 +56,16 @@ contract ConfidroPayroll {
         emit ComplianceAdded(officer);
     }
 
-    function getTotalsForCompliance() public view returns (euint32, euint32) {
+    function getTotalsForCompliance() public view returns (euint64, euint64) {
         require(isCompliance[msg.sender], "Not authorized");
         return (totalPayrollETH, totalPayrollUSDC);
     }
     
     // currency: 0 for ETH, 1 for USDC
-    function addEmployee(address employee, InEuint32 calldata encryptedSalaryInput, uint8 currency) public onlyOwner {
+    function addEmployee(address employee, InEuint64 calldata encryptedSalaryInput, uint8 currency) public onlyOwner {
         require(currency == 0 || currency == 1, "Invalid currency");
         
-        euint32 encryptedSalary = FHE.asEuint32(encryptedSalaryInput);
+        euint64 encryptedSalary = FHE.asEuint64(encryptedSalaryInput);
         FHE.allowThis(encryptedSalary);
         FHE.allow(encryptedSalary, owner);
         FHE.allow(encryptedSalary, employee);
@@ -102,12 +102,12 @@ contract ConfidroPayroll {
     function processPayroll() public onlyOwner {
         emit PayrollProcessed(block.timestamp);
         if (privaraEscrow != address(0)) {
-            euint32[] memory amounts = new euint32[](employeeList.length);
+            euint64[] memory amounts = new euint64[](employeeList.length);
             uint8[] memory currencies = new uint8[](employeeList.length);
             
             for (uint i = 0; i < employeeList.length; i++) {
                 address emp = employeeList[i];
-                euint32 empSalary = salaries[emp];
+                euint64 empSalary = salaries[emp];
                 
                 FHE.allow(empSalary, privaraEscrow);
                 amounts[i] = empSalary;
@@ -119,7 +119,7 @@ contract ConfidroPayroll {
 
     function withdrawSalary() public {
         require(hasActiveSalary[msg.sender], "No salary to withdraw");
-        euint32 salary = salaries[msg.sender];
+        euint64 salary = salaries[msg.sender];
         uint8 currency = paymentCurrency[msg.sender];
         
         hasActiveSalary[msg.sender] = false;
@@ -137,7 +137,7 @@ contract ConfidroPayroll {
         emit SalaryWithdrawn(msg.sender, salary, currency);
     }
 
-    function getEncryptedTotals() public view returns (euint32 ethTotal, euint32 usdcTotal) {
+    function getEncryptedTotals() public view returns (euint64 ethTotal, euint64 usdcTotal) {
         return (totalPayrollETH, totalPayrollUSDC);
     }
 

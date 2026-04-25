@@ -25,7 +25,7 @@ describe("ConfidroPayroll", function () {
     // Verify that the constructor properly initialized the FHE ciphertext
     // and granted the owner read access
     const encryptedTotal = await payroll.getEncryptedTotal();
-    const decryptedTotal = await fhe.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+    const decryptedTotal = await fhe.decryptForView(encryptedTotal, FheTypes.Uint64).execute();
     
     expect(Number(decryptedTotal)).to.equal(0);
   });
@@ -35,7 +35,7 @@ describe("ConfidroPayroll", function () {
     const employee1Address = await employee1.getAddress();
 
     // Finalize with .execute() and destructure the result directly
-    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint32(5000n)]).execute();
+    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint64(5000n)]).execute();
 
     await expect(payroll.addEmployee(employee1Address, encryptedSalary))
       .to.emit(payroll, "EmployeeAdded");
@@ -43,7 +43,7 @@ describe("ConfidroPayroll", function () {
     const stored = await payroll.salaries(employee1Address);
 
     // Use decryptForView and finalize with .execute()
-    const decrypted = await fhe.decryptForView(stored, FheTypes.Uint32).execute();
+    const decrypted = await fhe.decryptForView(stored, FheTypes.Uint64).execute();
     expect(Number(decrypted)).to.equal(5000);
   });
 
@@ -56,7 +56,7 @@ describe("ConfidroPayroll", function () {
     const fhe = await hre.cofhe.createClientWithBatteries();
     const employee1Address = await employee1.getAddress();
 
-    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint32(5000n)]).execute();
+    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint64(5000n)]).execute();
 
     // Owner adds the employee
     await payroll.addEmployee(employee1Address, encryptedSalary);
@@ -71,7 +71,7 @@ describe("ConfidroPayroll", function () {
 
     // Verify the owner can STILL decrypt the total payroll after employee withdraws
     const encryptedTotal = await payroll.getEncryptedTotal();
-    const decryptedTotal = await fhe.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+    const decryptedTotal = await fhe.decryptForView(encryptedTotal, FheTypes.Uint64).execute();
     
     // Total should be back to 0 since the only employee withdrew their 5000
     expect(Number(decryptedTotal)).to.equal(0);
@@ -83,15 +83,15 @@ describe("ConfidroPayroll", function () {
     const employee1Address = await employee1.getAddress();
     const employee2Address = await employee2.getAddress();
 
-    const [salary1] = await fhe.encryptInputs([Encryptable.uint32(1000n)]).execute();
-    const [salary2] = await fhe.encryptInputs([Encryptable.uint32(2000n)]).execute();
+    const [salary1] = await fhe.encryptInputs([Encryptable.uint64(1000n)]).execute();
+    const [salary2] = await fhe.encryptInputs([Encryptable.uint64(2000n)]).execute();
 
     await payroll.addEmployee(employee1Address, salary1);
     await payroll.addEmployee(employee2Address, salary2);
 
     const encryptedTotal = await payroll.getEncryptedTotal();
 
-    const decryptedTotal = await fhe.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+    const decryptedTotal = await fhe.decryptForView(encryptedTotal, FheTypes.Uint64).execute();
     expect(Number(decryptedTotal)).to.equal(3000);
   });
 
@@ -99,16 +99,16 @@ describe("ConfidroPayroll", function () {
     const fhe = await hre.cofhe.createClientWithBatteries();
 
     const employee1Address = await employee1.getAddress();
-    const maxUint32 = 4294967295n; 
+    const maxUint64 = 4294967295n; 
 
-    const [largeSalary] = await fhe.encryptInputs([Encryptable.uint32(maxUint32)]).execute();
+    const [largeSalary] = await fhe.encryptInputs([Encryptable.uint64(maxUint64)]).execute();
 
     await payroll.addEmployee(employee1Address, largeSalary);
 
     const encryptedTotal = await payroll.getEncryptedTotal();
     
-    const decryptedTotal = await fhe.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
-    expect(Number(decryptedTotal)).to.equal(Number(maxUint32));
+    const decryptedTotal = await fhe.decryptForView(encryptedTotal, FheTypes.Uint64).execute();
+    expect(Number(decryptedTotal)).to.equal(Number(maxUint64));
   });
 
   it("6. Prevents double withdrawal", async function () {
@@ -116,7 +116,7 @@ describe("ConfidroPayroll", function () {
 
     const employee1Address = await employee1.getAddress();
     
-    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint32(5000n)]).execute();
+    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint64(5000n)]).execute();
 
     await payroll.addEmployee(employee1Address, encryptedSalary);
 
@@ -134,8 +134,8 @@ describe("ConfidroPayroll", function () {
     const employee2Address = await employee2.getAddress();
 
     // Encrypt salaries for two employees
-    const [salary1] = await fhe.encryptInputs([Encryptable.uint32(1000n)]).execute();
-    const [salary2] = await fhe.encryptInputs([Encryptable.uint32(2000n)]).execute();
+    const [salary1] = await fhe.encryptInputs([Encryptable.uint64(1000n)]).execute();
+    const [salary2] = await fhe.encryptInputs([Encryptable.uint64(2000n)]).execute();
 
     // Add employees to the contract
     await payroll.addEmployee(employee1Address, salary1);
@@ -154,7 +154,7 @@ describe("ConfidroPayroll", function () {
     const fhe = await hre.cofhe.createClientWithBatteries();
     const employee1Address = await employee1.getAddress();
     
-    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint32(5000n)]).execute();
+    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint64(5000n)]).execute();
 
     // Connect as employee1 (non-owner) and try to add an employee
     await expect(
@@ -177,14 +177,14 @@ describe("ConfidroPayroll", function () {
     const employee1Address = await employee1.getAddress();
 
     // Owner encrypts and adds the salary
-    const [encryptedSalary] = await fheOwner.encryptInputs([Encryptable.uint32(7500n)]).execute();
+    const [encryptedSalary] = await fheOwner.encryptInputs([Encryptable.uint64(7500n)]).execute();
     await payroll.addEmployee(employee1Address, encryptedSalary);
 
     // Fetch the stored encrypted salary
     const storedSalary = await payroll.salaries(employee1Address);
 
     // Employee 1 uses their own client/wallet to decrypt their salary
-    const decrypted = await fheEmployee.decryptForView(storedSalary, FheTypes.Uint32).execute();
+    const decrypted = await fheEmployee.decryptForView(storedSalary, FheTypes.Uint64).execute();
     expect(Number(decrypted)).to.equal(7500);
   });
 
@@ -196,7 +196,7 @@ describe("ConfidroPayroll", function () {
     const employee1Address = await employee1.getAddress();
     
     // Owner adds Employee 1
-    const [encryptedSalary] = await fheOwner.encryptInputs([Encryptable.uint32(5000n)]).execute();
+    const [encryptedSalary] = await fheOwner.encryptInputs([Encryptable.uint64(5000n)]).execute();
     await payroll.addEmployee(employee1Address, encryptedSalary);
 
     const storedSalary = await payroll.salaries(employee1Address);
@@ -205,7 +205,7 @@ describe("ConfidroPayroll", function () {
     // Employee 2 tries to decrypt Employee 1's salary (should fail)
     let salaryErrorOccurred = false;
     try {
-      await fheEmployee2.decryptForView(storedSalary, FheTypes.Uint32).execute();
+      await fheEmployee2.decryptForView(storedSalary, FheTypes.Uint64).execute();
     } catch (error) {
       salaryErrorOccurred = true;
     }
@@ -214,7 +214,7 @@ describe("ConfidroPayroll", function () {
     // Employee 2 tries to decrypt the total payroll (should fail)
     let totalErrorOccurred = false;
     try {
-      await fheEmployee2.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+      await fheEmployee2.decryptForView(encryptedTotal, FheTypes.Uint64).execute();
     } catch (error) {
       totalErrorOccurred = true;
     }
@@ -229,8 +229,8 @@ describe("ConfidroPayroll", function () {
     const employee2Address = await employee2.getAddress();
 
     // Employer encrypts salaries for both employees
-    const [salary1] = await fheEmployer.encryptInputs([Encryptable.uint32(3000n)]).execute();
-    const [salary2] = await fheEmployer.encryptInputs([Encryptable.uint32(4500n)]).execute();
+    const [salary1] = await fheEmployer.encryptInputs([Encryptable.uint64(3000n)]).execute();
+    const [salary2] = await fheEmployer.encryptInputs([Encryptable.uint64(4500n)]).execute();
 
     // Employer adds the employees to the contract
     await payroll.addEmployee(employee1Address, salary1);
@@ -240,7 +240,7 @@ describe("ConfidroPayroll", function () {
     const encryptedTotal = await payroll.getEncryptedTotal();
 
     // Employer decrypts the total
-    const decryptedTotal = await fheEmployer.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+    const decryptedTotal = await fheEmployer.decryptForView(encryptedTotal, FheTypes.Uint64).execute();
     
     // 3000 + 4500 = 7500
     expect(Number(decryptedTotal)).to.equal(7500);
@@ -277,7 +277,7 @@ describe("ConfidroPayroll", function () {
     const complianceAddress = await complianceOfficer.getAddress();
 
     // 1. Owner adds an employee with a salary
-    const [encryptedSalary] = await fheOwner.encryptInputs([Encryptable.uint32(8200n)]).execute();
+    const [encryptedSalary] = await fheOwner.encryptInputs([Encryptable.uint64(8200n)]).execute();
     await payroll.addEmployee(employee1Address, encryptedSalary);
 
     // 2. Owner assigns the compliance role. 
@@ -288,7 +288,7 @@ describe("ConfidroPayroll", function () {
     const encryptedTotal = await payroll.getEncryptedTotal();
 
     // Compliance Officer successfully decrypts the total
-    const decryptedTotal = await fheCompliance.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+    const decryptedTotal = await fheCompliance.decryptForView(encryptedTotal, FheTypes.Uint64).execute();
     expect(Number(decryptedTotal)).to.equal(8200);
 
     // 4. Compliance Officer attempts to decrypt the individual employee's salary
@@ -296,7 +296,7 @@ describe("ConfidroPayroll", function () {
     
     let unauthorizedAccessCaught = false;
     try {
-      await fheCompliance.decryptForView(storedSalary, FheTypes.Uint32).execute();
+      await fheCompliance.decryptForView(storedSalary, FheTypes.Uint64).execute();
     } catch (error) {
       unauthorizedAccessCaught = true;
     }

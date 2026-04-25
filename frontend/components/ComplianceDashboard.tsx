@@ -43,7 +43,7 @@ export default function ComplianceDashboard({ contractAddress }: { contractAddre
 
       // Decrypt the total payroll only (Selective Disclosure)
       const result = await client
-        .decryptForView(usdcHandle, FheTypes.Uint32) 
+        .decryptForView(usdcHandle, FheTypes.Uint64) 
         .withPermit(permit)
         .execute();
 

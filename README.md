@@ -83,7 +83,7 @@ Confidro removes these barriers by making payroll **confidential by design**.
 
 1. **Employer Setup** — Employer registers employees (wallet addresses + encrypted salary amounts)
 2. **Encryption** — Salary values are encrypted client-side using `@cofhe/sdk` before submission
-3. **Storage** — Contract stores `euint32` values (encrypted uint32) — never plaintext
+3. **Storage** — Contract stores `euint64` values (encrypted uint64) — never plaintext
 4. **Payroll Processing** — Employer triggers `processPayroll()`; contract uses FHE to compute total without decryption
 5. **Settlement** — Privara SDK handles cross-chain settlement and finality
 6. **Employee Claim** — Employee submits decryption permit to view and withdraw their salary
@@ -114,7 +114,7 @@ Confidro removes these barriers by making payroll **confidential by design**.
 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │ ConfidroPayroll.sol (Solidity) │
-│ • euint32 salary storage • FHE.add() • FHE.allowThis/Sender │
+│ • euint64 salary storage • FHE.add() • FHE.allowThis/Sender │
 └─────────────────────────────────────────────────────────────────┘
 │
 ▼
@@ -222,14 +222,14 @@ pragma solidity ^0.8.24;
 import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 contract ConfidroPayroll {
-    mapping(address => euint32) public salaries;  // Encrypted salary per employee
-    euint32 public totalPayroll;                  // Encrypted total
+    mapping(address => euint64) public salaries;  // Encrypted salary per employee
+    euint64 public totalPayroll;                  // Encrypted total
     mapping(address => bool) public isCompliance; // Compliance officers
     
-    event EmployeeAdded(address indexed employee, euint32 encryptedSalary);
+    event EmployeeAdded(address indexed employee, euint64 encryptedSalary);
     event PayrollProcessed(uint256 timestamp);
     
-    function addEmployee(address employee, euint32 encryptedSalary) public onlyOwner {
+    function addEmployee(address employee, euint64 encryptedSalary) public onlyOwner {
         salaries[employee] = encryptedSalary;
         totalPayroll = FHE.add(totalPayroll, encryptedSalary);
         FHE.allowThis(totalPayroll);
@@ -248,7 +248,7 @@ contract ConfidroPayroll {
     }
     
     function withdrawSalary() public {
-        euint32 salary = salaries[msg.sender];
+        euint64 salary = salaries[msg.sender];
         require(FHE.decrypt(salary) > 0, "No salary to withdraw");
         
         // Transfer funds
@@ -350,7 +350,7 @@ FHE.allow(encryptedValue, complianceAddress);
 ## Roadmap
 ### ✅ Completed
 - Core `ConfidroPayroll.sol` smart contract
-- FHE integration with euint32 types
+- FHE integration with euint64 types
 - Client-side encryption/decryption (@cofhe/sdk)
 - Privara cross-chain settlement
 - Test suite with local FHE mocks

@@ -5,7 +5,7 @@ import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 // Interface for a Confidential FHE-enabled ERC20 Token (FHERC20)
 interface IFHERC20 {
-    function transfer(address to, euint32 amount) external;
+    function transfer(address to, euint64 amount) external;
     function transferFrom(address from, address to, uint256 amount) external;
     function transfer(address to, uint256 amount) external;
 }
@@ -66,7 +66,7 @@ contract ConfidroEscrow {
     }
 
     // 3. FHE Distribution: Called by ConfidroPayroll during processPayroll()
-    function distribute(address[] memory employees, euint32[] memory amounts, uint8[] memory currencies) external onlyPayroll {
+    function distribute(address[] memory employees, euint64[] memory amounts, uint8[] memory currencies) external onlyPayroll {
         require(employees.length == amounts.length && amounts.length == currencies.length, "Mismatched arrays");
         
         for (uint i = 0; i < employees.length; i++) {

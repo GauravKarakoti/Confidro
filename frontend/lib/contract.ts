@@ -193,7 +193,7 @@ export const PAYROLL_ABI = [
         },
         {
           "indexed": false,
-          "internalType": "euint32",
+          "internalType": "euint64",
           "name": "encryptedSalary",
           "type": "bytes32"
         },
@@ -244,7 +244,7 @@ export const PAYROLL_ABI = [
         },
         {
           "indexed": false,
-          "internalType": "euint32",
+          "internalType": "euint64",
           "name": "amount",
           "type": "bytes32"
         },
@@ -301,7 +301,7 @@ export const PAYROLL_ABI = [
               "type": "bytes"
             }
           ],
-          "internalType": "struct InEuint32",
+          "internalType": "struct InEuint64",
           "name": "encryptedSalaryInput",
           "type": "tuple"
         },
@@ -353,12 +353,12 @@ export const PAYROLL_ABI = [
       "name": "getEncryptedTotals",
       "outputs": [
         {
-          "internalType": "euint32",
+          "internalType": "euint64",
           "name": "ethTotal",
           "type": "bytes32"
         },
         {
-          "internalType": "euint32",
+          "internalType": "euint64",
           "name": "usdcTotal",
           "type": "bytes32"
         }
@@ -371,12 +371,12 @@ export const PAYROLL_ABI = [
       "name": "getTotalsForCompliance",
       "outputs": [
         {
-          "internalType": "euint32",
+          "internalType": "euint64",
           "name": "",
           "type": "bytes32"
         },
         {
-          "internalType": "euint32",
+          "internalType": "euint64",
           "name": "",
           "type": "bytes32"
         }
@@ -485,7 +485,7 @@ export const PAYROLL_ABI = [
       "name": "salaries",
       "outputs": [
         {
-          "internalType": "euint32",
+          "internalType": "euint64",
           "name": "",
           "type": "bytes32"
         }
@@ -511,7 +511,7 @@ export const PAYROLL_ABI = [
       "name": "totalPayrollETH",
       "outputs": [
         {
-          "internalType": "euint32",
+          "internalType": "euint64",
           "name": "",
           "type": "bytes32"
         }
@@ -524,7 +524,7 @@ export const PAYROLL_ABI = [
       "name": "totalPayrollUSDC",
       "outputs": [
         {
-          "internalType": "euint32",
+          "internalType": "euint64",
           "name": "",
           "type": "bytes32"
         }
@@ -658,7 +658,7 @@ export const ESCROW_ABI = [
           "type": "address[]"
         },
         {
-          "internalType": "euint32[]",
+          "internalType": "euint64[]",
           "name": "amounts",
           "type": "bytes32[]"
         },
@@ -869,7 +869,7 @@ export const WRAPPER_ABI = [
       "name": "getEncryptedBalance",
       "outputs": [
         {
-          "internalType": "euint32",
+          "internalType": "euint64",
           "name": "",
           "type": "bytes32"
         }
@@ -885,7 +885,7 @@ export const WRAPPER_ABI = [
           "type": "address"
         },
         {
-          "internalType": "euint32",
+          "internalType": "euint64",
           "name": "amount",
           "type": "bytes32"
         }

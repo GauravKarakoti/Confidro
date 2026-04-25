@@ -147,7 +147,7 @@ function WithdrawCard({
 
       // Decrypt the Wrapper token balance
       const result = await client
-        .decryptForView(BigInt(encryptedBalance), FheTypes.Uint32)
+        .decryptForView(BigInt(encryptedBalance), FheTypes.Uint64)
         .withPermit()
         .execute();
         

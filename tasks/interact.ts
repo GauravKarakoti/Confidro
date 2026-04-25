@@ -53,13 +53,13 @@ task("interact", "Runs Confidro payroll flow using the Factory pattern")
 
     console.log("🔒 Encrypting salaries...");
     const [salary1, salary2] = await fhe.encryptInputs([
-        Encryptable.uint32(1000n),
-        Encryptable.uint32(2000n)
+        Encryptable.uint64(1000n),
+        Encryptable.uint64(2000n)
     ]).execute();
 
     console.log("👥 Adding employees...");
     
-    // Pass the entire salary object (which maps to the inEuint32 struct)
+    // Pass the entire salary object (which maps to the inEuint64 struct)
     const tx1 = await payroll.addEmployee(employee1Address, salary1);
     await tx1.wait();
     
