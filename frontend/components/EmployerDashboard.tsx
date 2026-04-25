@@ -22,8 +22,12 @@ import {
   DollarSign,
   TrendingUp,
 } from "lucide-react";
-import { CONFIDRO_ABI, CONFIDRO_CONTRACT_ADDRESS } from "@/lib/contract";
+import { PAYROLL_ABI } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
+
+interface EmployerDashboardProps {
+  contractAddress: `0x${string}`;
+}
 
 // ──────────────────────────────────────────────
 // Types
@@ -82,7 +86,7 @@ function StatCard({
   );
 }
 
-function AddEmployeeForm({ employeeCount }: { employeeCount: number }) {
+function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: number, contractAddress: `0x${string}` }) {
   const [address, setAddress] = useState("");
   const [salary, setSalary] = useState("");
   const [status, setStatus] = useState<TxStatus>("idle");
@@ -145,10 +149,9 @@ function AddEmployeeForm({ employeeCount }: { employeeCount: number }) {
 
         setStatus("pending");
 
-        // Write to contract using exact struct required by new ABI
         const hash = await writeContractAsync({
-          address: CONFIDRO_CONTRACT_ADDRESS,
-          abi: CONFIDRO_ABI,
+          address: contractAddress, // USE PROP HERE
+          abi: PAYROLL_ABI,         // USE NEW ABI NAME
           functionName: "addEmployee",
           args: [address as `0x${string}`, encryptedSalaryInput],
         });
@@ -317,10 +320,7 @@ function AddEmployeeForm({ employeeCount }: { employeeCount: number }) {
   );
 }
 
-// ──────────────────────────────────────────────
-// Payroll control card
-// ──────────────────────────────────────────────
-function PayrollCard() {
+function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
   const [showTotal, setShowTotal] = useState(false);
   const [decryptedTotal, setDecryptedTotal] = useState<number | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
@@ -338,8 +338,8 @@ function PayrollCard() {
   });
 
   const { data: encryptedTotal } = useReadContract({
-    address: CONFIDRO_CONTRACT_ADDRESS,
-    abi: CONFIDRO_ABI,
+    address: contractAddress,  // USE PROP HERE
+    abi: PAYROLL_ABI,          // USE NEW ABI NAME
     functionName: "getEncryptedTotal",
   });
 
@@ -393,12 +393,12 @@ function PayrollCard() {
     }
   };
 
-  const handleProcessPayroll = async () => {
+ const handleProcessPayroll = async () => {
     try {
       setProcessStatus("pending");
       const hash = await writeContractAsync({
-        address: CONFIDRO_CONTRACT_ADDRESS,
-        abi: CONFIDRO_ABI,
+        address: contractAddress, // USE PROP HERE
+        abi: PAYROLL_ABI,         // USE NEW ABI NAME
         functionName: "processPayroll",
         args: [],
       });
@@ -564,13 +564,10 @@ function PayrollCard() {
   );
 }
 
-// ──────────────────────────────────────────────
-// Main export
-// ──────────────────────────────────────────────
-export default function EmployerDashboard() {
+export default function EmployerDashboard({ contractAddress }: EmployerDashboardProps) {
   const { data: employees } = useReadContract({
-    address: CONFIDRO_CONTRACT_ADDRESS,
-    abi: CONFIDRO_ABI,
+    address: contractAddress, // USE PROP HERE
+    abi: PAYROLL_ABI,         // USE NEW ABI NAME
     functionName: "getEmployees",
   });
 
@@ -604,10 +601,10 @@ export default function EmployerDashboard() {
         />
       </div>
 
-      {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AddEmployeeForm employeeCount={employeeList.length} />
-        <PayrollCard />
+        {/* Pass the address down to child components */}
+        <AddEmployeeForm employeeCount={employeeList.length} contractAddress={contractAddress} />
+        <PayrollCard contractAddress={contractAddress} />
       </div>
     </motion.div>
   );

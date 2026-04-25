@@ -1,19 +1,21 @@
 import { expect } from "chai";
 import hre from "hardhat";
-import { Signer } from "ethers";
+// FIX: Import HardhatEthersSigner instead of Signer from ethers
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { Encryptable, FheTypes } from "@cofhe/sdk";
 
 describe("ConfidroPayroll", function () {
   let payroll: any; 
-  let owner: Signer;
-  let employee1: Signer;
-  let employee2: Signer;
+  // FIX: Use HardhatEthersSigner
+  let owner: HardhatEthersSigner;
+  let employee1: HardhatEthersSigner;
+  let employee2: HardhatEthersSigner;
 
   beforeEach(async function () {
     [owner, employee1, employee2] = await hre.ethers.getSigners();
 
     const ConfidroPayroll = await hre.ethers.getContractFactory("ConfidroPayroll");
-    payroll = await ConfidroPayroll.deploy();
+    payroll = await ConfidroPayroll.deploy(owner);
     await payroll.waitForDeployment();
   });
 
@@ -165,5 +167,83 @@ describe("ConfidroPayroll", function () {
     await expect(
       payroll.connect(employee1).processPayroll()
     ).to.be.revertedWith("Only owner can call this");
+  });
+
+  it("10. Employee can decrypt their own salary", async function () {
+    // Create an FHE client for the owner and one specifically for employee1
+    const fheOwner = await hre.cofhe.createClientWithBatteries(owner);
+    const fheEmployee = await hre.cofhe.createClientWithBatteries(employee1);
+    
+    const employee1Address = await employee1.getAddress();
+
+    // Owner encrypts and adds the salary
+    const [encryptedSalary] = await fheOwner.encryptInputs([Encryptable.uint32(7500n)]).execute();
+    await payroll.addEmployee(employee1Address, encryptedSalary);
+
+    // Fetch the stored encrypted salary
+    const storedSalary = await payroll.salaries(employee1Address);
+
+    // Employee 1 uses their own client/wallet to decrypt their salary
+    const decrypted = await fheEmployee.decryptForView(storedSalary, FheTypes.Uint32).execute();
+    expect(Number(decrypted)).to.equal(7500);
+  });
+
+  it("11. Unauthorized user cannot decrypt someone else's salary or total", async function () {
+    const fheOwner = await hre.cofhe.createClientWithBatteries(owner);
+    // Client for Employee 2 (the attacker in this scenario)
+    const fheEmployee2 = await hre.cofhe.createClientWithBatteries(employee2);
+    
+    const employee1Address = await employee1.getAddress();
+    
+    // Owner adds Employee 1
+    const [encryptedSalary] = await fheOwner.encryptInputs([Encryptable.uint32(5000n)]).execute();
+    await payroll.addEmployee(employee1Address, encryptedSalary);
+
+    const storedSalary = await payroll.salaries(employee1Address);
+    const encryptedTotal = await payroll.getEncryptedTotal();
+
+    // Employee 2 tries to decrypt Employee 1's salary (should fail)
+    let salaryErrorOccurred = false;
+    try {
+      await fheEmployee2.decryptForView(storedSalary, FheTypes.Uint32).execute();
+    } catch (error) {
+      salaryErrorOccurred = true;
+    }
+    expect(salaryErrorOccurred).to.be.true;
+
+    // Employee 2 tries to decrypt the total payroll (should fail)
+    let totalErrorOccurred = false;
+    try {
+      await fheEmployee2.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+    } catch (error) {
+      totalErrorOccurred = true;
+    }
+    expect(totalErrorOccurred).to.be.true;
+  });
+
+  // NEW TEST: Explicitly testing the employer decrypting the total
+  it("12. Employer (owner) can successfully decrypt total payroll", async function () {
+    // Client specifically for the Employer (owner)
+    const fheEmployer = await hre.cofhe.createClientWithBatteries(owner);
+    
+    const employee1Address = await employee1.getAddress();
+    const employee2Address = await employee2.getAddress();
+
+    // Employer encrypts salaries for both employees
+    const [salary1] = await fheEmployer.encryptInputs([Encryptable.uint32(3000n)]).execute();
+    const [salary2] = await fheEmployer.encryptInputs([Encryptable.uint32(4500n)]).execute();
+
+    // Employer adds the employees to the contract
+    await payroll.addEmployee(employee1Address, salary1);
+    await payroll.addEmployee(employee2Address, salary2);
+
+    // Fetch the updated encrypted total payroll from the contract
+    const encryptedTotal = await payroll.getEncryptedTotal();
+
+    // Employer decrypts the total
+    const decryptedTotal = await fheEmployer.decryptForView(encryptedTotal, FheTypes.Uint32).execute();
+    
+    // 3000 + 4500 = 7500
+    expect(Number(decryptedTotal)).to.equal(7500);
   });
 });

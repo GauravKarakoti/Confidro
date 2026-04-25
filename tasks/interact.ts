@@ -4,23 +4,39 @@ import { Encryptable } from "@cofhe/sdk";
 import { createCofheConfig, createCofheClient } from "@cofhe/sdk/node";
 import { baseSepolia } from "@cofhe/sdk/chains";
 
-task("interact", "Runs Confidro payroll flow on a deployed contract")
-  .addParam("contract", "The address of the deployed ConfidroPayroll contract")
+task("interact", "Runs Confidro payroll flow using the Factory pattern")
+  .addParam("factory", "The address of the deployed ConfidroPayrollFactory contract")
   .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
-    // 1. Only grab the owner, since that's the only configured private key
+    // 1. Grab the owner
     const [owner] = await hre.ethers.getSigners();
-    const contractAddress = taskArgs.contract;
+    const factoryAddress = taskArgs.factory;
 
-    // 2. Generate random addresses to act as your employees for the test
+    console.log(`✅ Interacting with Factory at: ${factoryAddress}`);
+
+    // 2. Connect to the Factory contract
+    const ConfidroPayrollFactory = await hre.ethers.getContractFactory("ConfidroPayrollFactory");
+    const factory = ConfidroPayrollFactory.attach(factoryAddress);
+
+    // 3. Create a new Organization (ConfidroPayroll contract) for the deployer
+    console.log("🏭 Creating new organization payroll contract via Factory...");
+    const createTx = await factory.createOrganization();
+    await createTx.wait();
+
+    // 4. Retrieve the newly created contract address for this employer
+    const employerContracts = await factory.getContractsByEmployer(owner.address);
+    // Get the most recent one we just deployed
+    const payrollAddress = employerContracts[employerContracts.length - 1];
+    console.log(`✅ New ConfidroPayroll deployed at: ${payrollAddress}`);
+
+    // 5. Connect to the newly deployed Payroll Contract
+    const ConfidroPayroll = await hre.ethers.getContractFactory("ConfidroPayroll");
+    const payroll = ConfidroPayroll.attach(payrollAddress);
+
+    // 6. Generate random addresses to act as your employees for the test
     const employee1Address = hre.ethers.Wallet.createRandom().address;
     const employee2Address = hre.ethers.Wallet.createRandom().address;
 
-    console.log(`✅ Interacting with contract at: ${contractAddress}`);
-
-    // Connect to the deployed contract
-    const ConfidroPayroll = await hre.ethers.getContractFactory("ConfidroPayroll");
-    const payroll = ConfidroPayroll.attach(contractAddress);
-
+    // 7. Setup the FHE Client
     const config = createCofheConfig({
         environment: "node",
         supportedChains: [baseSepolia]

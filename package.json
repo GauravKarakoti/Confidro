@@ -13,7 +13,7 @@
 		"localcofhe:deploy": "hardhat deploy --network localcofhe",
 		"localcofhe:stop": "hardhat localcofhe:stop",
 		"base-sepolia:deploy": "hardhat deploy --network base-sepolia",
-		"interact": "hardhat interact --contract 0xB0Aa5aE8087b7536457847b861286E956C7A1457 --network base-sepolia"
+		"interact": "hardhat interact --factory 0x8B3015161c9f48b90c4F66f813Bf37adC645dE2D --network base-sepolia"
 	},
 	"repository": {
 		"type": "git",

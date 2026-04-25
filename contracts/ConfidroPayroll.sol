@@ -27,13 +27,13 @@ contract ConfidroPayroll {
         _;
     }
 
-    constructor() {
-        // Set the deployer as the owner
-        owner = msg.sender;
+    constructor(address _owner) {
+        // Set the specified address as the owner instead of msg.sender
+        owner = _owner; 
 
-        // FIX: Initialize the accumulator with a trivial encrypted 0
+        // Initialize the accumulator with a trivial encrypted 0
         totalPayroll = FHE.asEuint32(0);
-        
+
         // Grant permissions for the initial 0 value
         FHE.allowThis(totalPayroll);
         FHE.allow(totalPayroll, owner);

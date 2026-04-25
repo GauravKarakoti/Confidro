@@ -13,18 +13,18 @@ task('deploy', 'Deploy the contracts to the selected network').setAction(async (
 	console.log(`Deploying with account: ${deployer.address}`)
 
 	// Deploy the contract
-	const ConfidroPayroll = await ethers.getContractFactory('ConfidroPayroll')
-	const payroll = await ConfidroPayroll.deploy()
-	await payroll.waitForDeployment()
+	const ConfidroPayrollFactory = await ethers.getContractFactory('ConfidroPayrollFactory')
+	const payrollFactory = await ConfidroPayrollFactory.deploy()
+	await payrollFactory.waitForDeployment()
 
-	const contractAddress = await payroll.getAddress()
-	console.log(`ConfidroPayroll deployed to: ${contractAddress}`)
+	const contractAddress = await payrollFactory.getAddress()
+	console.log(`ConfidroPayrollFactory deployed to: ${contractAddress}`)
 
 	// Save the deployment
-	saveDeployment(network.name, 'ConfidroPayroll', contractAddress)
+	saveDeployment(network.name, 'ConfidroPayrollFactory', contractAddress)
 	
 	const addresses = {
-		ConfidroPayroll: contractAddress
+		ConfidroPayrollFactory: contractAddress
 	}
 
 	return addresses
