@@ -3,16 +3,17 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAccount } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
   Briefcase,
   User,
   ShieldCheck,
-  Wallet,
-  ChevronDown,
+  Wallet
 } from "lucide-react";
 import EmployerDashboard from "./EmployerDashboard";
 import EmployeeDashboard from "./EmployeeDashboard";
+
+// Web3Modal React 19 Bypass
+const W3mButton = "w3m-button" as any;
 
 type Role = "employer" | "employee";
 
@@ -106,7 +107,8 @@ export default function Dashboard() {
             Connect to Base Sepolia to access the Confidro payroll dashboard.
           </p>
           <div className="flex justify-center">
-            <ConnectButton label="Connect Wallet" />
+            {/* WalletConnect Web3Modal Button */}
+            <W3mButton />
           </div>
         </motion.div>
       </div>

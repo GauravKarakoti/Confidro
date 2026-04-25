@@ -1,27 +1,38 @@
 "use client";
 
-import { WagmiProvider, createConfig, http } from "wagmi";
+import { WagmiProvider } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  RainbowKitProvider,
-  getDefaultWallets,
-  darkTheme,
-} from "@rainbow-me/rainbowkit";
-import "@rainbow-me/rainbowkit/styles.css";
+import { defaultWagmiConfig } from "@web3modal/wagmi/react/config";
+import { createWeb3Modal } from "@web3modal/wagmi/react";
 import { ReactNode, useState } from "react";
 
-const { connectors } = getDefaultWallets({
-  appName: "Confidro",
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? "confidro_demo",
+const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!;
+
+const metadata = {
+  name: "Confidro",
+  description: "Confidro Payroll",
+  url: "https://confidro.com", 
+  icons: ["https://avatars.githubusercontent.com/u/37784886"]
+};
+
+const chains = [baseSepolia] as const;
+
+// Create wagmiConfig using Web3Modal's default configuration
+const wagmiConfig = defaultWagmiConfig({
+  chains,
+  projectId,
+  metadata,
 });
 
-const wagmiConfig = createConfig({
-  chains: [baseSepolia],
-  connectors,
-  transports: {
-    [baseSepolia.id]: http(),
-  },
+// Initialize Web3Modal
+createWeb3Modal({
+  wagmiConfig,
+  projectId,
+  themeVariables: {
+    '--w3m-accent': '#5A29E4', // Matching your previous accent color
+    '--w3m-border-radius-master': '2px', // Gives the modal a modern look
+  }
 });
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -30,16 +41,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider
-          theme={darkTheme({
-            accentColor: "#5A29E4",
-            accentColorForeground: "white",
-            borderRadius: "medium",
-            fontStack: "system",
-          })}
-        >
-          {children}
-        </RainbowKitProvider>
+        {children}
       </QueryClientProvider>
     </WagmiProvider>
   );

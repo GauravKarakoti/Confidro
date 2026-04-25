@@ -1,8 +1,10 @@
 "use client";
 
-import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { motion } from "framer-motion";
 import { ShieldCheck } from "lucide-react";
+
+// 1. Create a bypassed reference to the custom element
+const W3mButton = "w3m-button" as any;
 
 export default function Navbar() {
   return (
@@ -42,11 +44,9 @@ export default function Navbar() {
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           Base Sepolia
         </span>
-        <ConnectButton
-          showBalance={false}
-          chainStatus="icon"
-          accountStatus="avatar"
-        />
+        
+        {/* 2. Use the capitalized bypassed component */}
+        <W3mButton balance="hide" size="sm" />
       </div>
     </motion.nav>
   );
