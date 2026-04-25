@@ -17,7 +17,7 @@ export default function ComplianceDashboard({ contractAddress }: { contractAddre
   const { data: encryptedTotal } = useReadContract({
     address: contractAddress,
     abi: PAYROLL_ABI,
-    functionName: "getEncryptedTotal",
+    functionName: "getEncryptedTotals",
   });
 
   const handleRevealComplianceTotal = async () => {

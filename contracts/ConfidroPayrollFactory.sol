@@ -29,8 +29,9 @@ contract ConfidroPayrollFactory {
         return contractAddress;
     }
 
-    function createEscrow(address payrollContract, address paymentTokenAddress) public returns (address) {
-        ConfidroEscrow newEscrow = new ConfidroEscrow(msg.sender, payrollContract, paymentTokenAddress);
+    // UPDATED: Now takes both tokenETH and tokenUSDC addresses
+    function createEscrow(address payrollContract, address tokenETH, address tokenUSDC) public returns (address) {
+        ConfidroEscrow newEscrow = new ConfidroEscrow(msg.sender, payrollContract, tokenETH, tokenUSDC);
         return address(newEscrow);
     }
     

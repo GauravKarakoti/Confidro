@@ -33,9 +33,6 @@ interface EmployerDashboardProps {
   contractAddress: `0x${string}`;
 }
 
-// ──────────────────────────────────────────────
-// Types
-// ──────────────────────────────────────────────
 type EncryptedInput = {
   ctHash: bigint;
   securityZone: number;
@@ -48,9 +45,9 @@ type TxStatus = "idle" | "encrypting" | "pending" | "success" | "error";
 function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` }) {
   const [officer, setOfficer] = useState("");
   const [depositAmount, setDepositAmount] = useState("");
+  const [depositToken, setDepositToken] = useState<"0" | "1">("0");
   const { writeContractAsync } = useWriteContract();
 
-  // 1. Read existing Escrow Address from Payroll Contract
   const { data: currentEscrow } = useReadContract({
     address: contractAddress,
     abi: PAYROLL_ABI,
@@ -68,16 +65,18 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
     });
   };
 
-  // 2. Deploy Escrow using Factory
   const handleDeployEscrow = async () => {
-    try {
-      const hash = await writeContractAsync({
-        address: FACTORY_CONTRACT_ADDRESS,
-        abi: FACTORY_ABI,
-        functionName: "createEscrow",
-        args: [contractAddress],
-      });
-      
+  try {
+    const hash = await writeContractAsync({
+      address: FACTORY_CONTRACT_ADDRESS,
+      abi: FACTORY_ABI, // Make sure you update this ABI in lib/contract.ts!
+      functionName: "createEscrow",
+      args: [
+        contractAddress, 
+        "0x_YOUR_FHE_WETH_ADDRESS", 
+        "0x_YOUR_FHE_USDC_ADDRESS"
+      ],
+    });
       console.log("Deploy tx:", hash);
       alert("Escrow deploying! Please check your wallet/explorer. You'll need to link it once confirmed.");
     } catch (e) {
@@ -85,14 +84,14 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
     }
   };
 
-  const handleDeposit = async () => {
+  const handleDepositTokens = async () => {
     if (!hasEscrow) return;
     try {
       await writeContractAsync({
         address: currentEscrow as `0x${string}`,
         abi: ESCROW_ABI,
-        functionName: "depositNative", // <-- Fixed from "deposit"
-        value: BigInt(Number(depositAmount) * 1e18), 
+        functionName: "depositTokens",
+        args: [BigInt(Number(depositAmount) * 1e18), parseInt(depositToken)],
       });
       setDepositAmount("");
     } catch (e) {
@@ -136,14 +135,22 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
             </div>
             
             <div className="flex gap-2">
+              <select 
+                value={depositToken} 
+                onChange={(e) => setDepositToken(e.target.value as "0" | "1")}
+                className="input-field max-w-24"
+              >
+                <option value="0">ETH</option>
+                <option value="1">USDC</option>
+              </select>
               <input 
                 type="number"
-                placeholder="Deposit Budget Amount (ETH/Tokens)" 
+                placeholder="Deposit Budget Amount" 
                 className="input-field flex-1" 
                 value={depositAmount}
                 onChange={(e) => setDepositAmount(e.target.value)} 
               />
-              <button onClick={handleDeposit} className="btn-green">Deposit Budget</button>
+              <button onClick={handleDepositTokens} className="btn-green">Deposit Budget</button>
             </div>
           </div>
         )}
@@ -152,9 +159,6 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   );
 }
 
-// ──────────────────────────────────────────────
-// Address Banner
-// ──────────────────────────────────────────────
 function AddressBanner({ address }: { address: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -167,10 +171,7 @@ function AddressBanner({ address }: { address: string }) {
   return (
     <div 
       className="glass rounded-xl p-4 mb-6 flex sm:flex-row flex-col sm:items-center justify-between gap-3 border" 
-      style={{ 
-        background: "rgba(90,41,228,0.05)",
-        borderColor: "rgba(90,41,228,0.2)"
-      }}
+      style={{ background: "rgba(90,41,228,0.05)", borderColor: "rgba(90,41,228,0.2)" }}
     >
       <div>
         <div className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">
@@ -191,46 +192,15 @@ function AddressBanner({ address }: { address: string }) {
   );
 }
 
-// ──────────────────────────────────────────────
-// Stat card
-// ──────────────────────────────────────────────
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  accent: "purple" | "green";
-}) {
+function StatCard({ icon: Icon, label, value, accent }: { icon: React.ElementType; label: string; value: string; accent: "purple" | "green" }) {
   return (
     <div className="glass rounded-xl p-5 flex items-center gap-4">
-      <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{
-          background:
-            accent === "purple"
-              ? "rgba(90,41,228,0.2)"
-              : "rgba(10,92,62,0.3)",
-        }}
-      >
-        <Icon
-          size={20}
-          className={accent === "purple" ? "text-violet-400" : "text-emerald-400"}
-        />
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: accent === "purple" ? "rgba(90,41,228,0.2)" : "rgba(10,92,62,0.3)" }}>
+        <Icon size={20} className={accent === "purple" ? "text-violet-400" : "text-emerald-400"} />
       </div>
       <div>
-        <div className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-0.5">
-          {label}
-        </div>
-        <div
-          className="text-xl font-bold"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          {value}
-        </div>
+        <div className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-0.5">{label}</div>
+        <div className="text-xl font-bold" style={{ fontFamily: "var(--font-display)" }}>{value}</div>
       </div>
     </div>
   );
@@ -239,6 +209,7 @@ function StatCard({
 function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: number, contractAddress: `0x${string}` }) {
   const [address, setAddress] = useState("");
   const [salary, setSalary] = useState("");
+  const [currency, setCurrency] = useState<"0" | "1">("0");
   const [status, setStatus] = useState<TxStatus>("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -248,9 +219,7 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
 
   const { writeContractAsync } = useWriteContract();
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined);
-  const { isLoading: isConfirming } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
+  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -271,10 +240,7 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
         const { createCofheConfig, createCofheClient } = cofheWeb;
         const { Encryptable } = cofheCore;
 
-        const config = createCofheConfig({ 
-          environment: "web",
-          supportedChains: [baseSepolia]
-        });
+        const config = createCofheConfig({ environment: "web", supportedChains: [baseSepolia] });
         const client = await createCofheClient(config);
         
         await client.connect(publicClient, walletClient);
@@ -298,7 +264,7 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
           address: contractAddress, 
           abi: PAYROLL_ABI,         
           functionName: "addEmployee",
-          args: [address as `0x${string}`, encryptedSalaryInput],
+          args: [address as `0x${string}`, encryptedSalaryInput, parseInt(currency)],
         });
 
         setTxHash(hash);
@@ -309,51 +275,33 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
         setTimeout(() => setStatus("idle"), 4000);
       } catch (err: unknown) {
         setStatus("error");
-        setErrorMsg(
-          err instanceof Error ? err.message : "Transaction failed. Please try again."
-        );
+        setErrorMsg(err instanceof Error ? err.message : "Transaction failed. Please try again.");
         setTimeout(() => setStatus("idle"), 5000);
       }
     },
-    [address, salary, writeContractAsync, contractAddress, publicClient, walletClient, userAddress, chainId]
+    [address, salary, currency, writeContractAsync, contractAddress, publicClient, walletClient, userAddress, chainId]
   );
 
-  const isLoading =
-    status === "encrypting" || status === "pending" || isConfirming;
+  const isLoading = status === "encrypting" || status === "pending" || isConfirming;
 
   return (
     <div className="glass rounded-2xl p-6 glow-border">
       <div className="flex items-center gap-3 mb-6">
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: "rgba(90,41,228,0.2)" }}
-        >
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(90,41,228,0.2)" }}>
           <UserPlus size={17} className="text-violet-400" />
         </div>
         <div>
-          <h3
-            className="font-bold text-white text-base"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Add Employee
-          </h3>
-          <p className="text-xs text-slate-500">
-            Salary is FHE-encrypted before submission
-          </p>
+          <h3 className="font-bold text-white text-base" style={{ fontFamily: "var(--font-display)" }}>Add Employee</h3>
+          <p className="text-xs text-slate-500">Salary is FHE-encrypted</p>
         </div>
         <div className="ml-auto">
-          <span className="badge badge-purple">
-            <Lock size={9} />
-            FHE
-          </span>
+          <span className="badge badge-purple"><Lock size={9} /> FHE</span>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">
-            Employee Wallet Address
-          </label>
+          <label className="block text-xs font-medium text-slate-400 mb-1.5">Employee Wallet Address</label>
           <input
             type="text"
             placeholder="0x..."
@@ -365,98 +313,70 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
           />
         </div>
 
-        <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">
-            Monthly Salary (USD)
-          </label>
-          <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">
-              $
-            </span>
-            <input
-              type="number"
-              placeholder="5000"
-              value={salary}
-              onChange={(e) => setSalary(e.target.value)}
-              className="input-field pl-8"
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">Payment Token</label>
+            <select 
+              value={currency} 
+              onChange={(e) => setCurrency(e.target.value as "0" | "1")}
+              className="input-field w-full"
               disabled={isLoading}
-              required
-              min={1}
-            />
+            >
+              <option value="0">Base Sepolia ETH</option>
+              <option value="1">USDC</option>
+            </select>
           </div>
-          <p className="text-xs text-slate-600 mt-1.5 flex items-center gap-1">
-            <Lock size={9} className="text-violet-500" />
-            This amount will be encrypted client-side via CoFHE before being
-            sent on-chain
-          </p>
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">Monthly Salary</label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">{currency === "0" ? "Ξ" : "$"}</span>
+              <input
+                type="number"
+                placeholder="5000"
+                value={salary}
+                onChange={(e) => setSalary(e.target.value)}
+                className="input-field pl-8"
+                disabled={isLoading}
+                required
+                min={1}
+              />
+            </div>
+          </div>
         </div>
+        
+        <p className="text-xs text-slate-600 mt-1.5 flex items-center gap-1">
+          <Lock size={9} className="text-violet-500" />
+          Amount encrypted client-side via CoFHE before on-chain submission.
+        </p>
 
         <AnimatePresence>
           {status === "encrypting" && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex items-center gap-2 text-sm text-violet-400 bg-violet-500/10 border border-violet-500/20 rounded-lg px-3 py-2.5"
-            >
-              <Loader2 size={14} className="animate-spin" />
-              Encrypting salary with FHE...
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-violet-400 bg-violet-500/10 border border-violet-500/20 rounded-lg px-3 py-2.5">
+              <Loader2 size={14} className="animate-spin" /> Encrypting salary...
             </motion.div>
           )}
           {status === "pending" && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex items-center gap-2 text-sm text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2.5"
-            >
-              <Loader2 size={14} className="animate-spin" />
-              Awaiting wallet confirmation...
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2.5">
+              <Loader2 size={14} className="animate-spin" /> Awaiting wallet confirmation...
             </motion.div>
           )}
           {status === "success" && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5"
-            >
-              <CheckCircle2 size={14} />
-              Employee added successfully!
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5">
+              <CheckCircle2 size={14} /> Employee added successfully!
             </motion.div>
           )}
           {status === "error" && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex items-start gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5"
-            >
-              <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-              <span className="break-all">{errorMsg}</span>
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-start gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
+              <AlertCircle size={14} className="flex-shrink-0 mt-0.5" /> <span className="break-all">{errorMsg}</span>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <button
-          type="submit"
-          className="btn-primary w-full"
-          disabled={isLoading || !address || !salary}
-        >
+        <button type="submit" className="btn-primary w-full" disabled={isLoading || !address || !salary}>
           {isLoading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              {status === "encrypting"
-                ? "Encrypting..."
-                : status === "pending"
-                ? "Sending..."
-                : "Confirming..."}
-            </>
+            <><Loader2 size={16} className="animate-spin" />{status === "encrypting" ? "Encrypting..." : status === "pending" ? "Sending..." : "Confirming..."}</>
           ) : (
-            <>
-              <UserPlus size={16} />
-              Add Employee ({employeeCount} registered)
-            </>
+            <><UserPlus size={16} /> Add Employee ({employeeCount} registered)</>
           )}
         </button>
       </form>
@@ -466,31 +386,29 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
 
 function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
   const [showTotal, setShowTotal] = useState(false);
-  const [decryptedTotal, setDecryptedTotal] = useState<number | null>(null);
+  const [decryptedETH, setDecryptedETH] = useState<number | null>(null);
+  const [decryptedUSDC, setDecryptedUSDC] = useState<number | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [processStatus, setProcessStatus] = useState<TxStatus>("idle");
-  const [processTxHash, setProcessTxHash] = useState<`0x${string}` | undefined>(
-    undefined
-  );
+  const [processTxHash, setProcessTxHash] = useState<`0x${string}` | undefined>(undefined);
+  
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { address: userAddress, chainId } = useAccount();
-
   const { writeContractAsync } = useWriteContract();
-  const { isLoading: isProcessConfirming } = useWaitForTransactionReceipt({
-    hash: processTxHash,
-  });
+  const { isLoading: isProcessConfirming } = useWaitForTransactionReceipt({ hash: processTxHash });
 
-  const { data: encryptedTotal } = useReadContract({
+  const { data: encryptedTotals } = useReadContract({
     address: contractAddress,  
     abi: PAYROLL_ABI,          
-    functionName: "getEncryptedTotal",
+    functionName: "getEncryptedTotals",
   });
 
   const handleRevealTotal = async () => {
     if (showTotal) {
       setShowTotal(false);
-      setDecryptedTotal(null);
+      setDecryptedETH(null);
+      setDecryptedUSDC(null);
       return;
     }
 
@@ -501,33 +419,29 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         throw new Error("Please connect your wallet first.");
       }
 
-      if (!encryptedTotal || BigInt(encryptedTotal) === BigInt(0)) {
-        throw new Error("No payroll data available yet. Add an employee first.");
-      }
-
       const cofheWeb = await import("@cofhe/sdk/web");
       const cofheCore = await import("@cofhe/sdk");
       
       const { createCofheConfig, createCofheClient } = cofheWeb;
       const { FheTypes } = cofheCore;
 
-      const config = createCofheConfig({ 
-        environment: "web",
-        supportedChains: [baseSepolia]
-      });
+      const config = createCofheConfig({ environment: "web", supportedChains: [baseSepolia] });
       const client = await createCofheClient(config);
-
       await client.connect(publicClient, walletClient);
-
       const permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
 
-      const result = await client
-        .decryptForView(BigInt(encryptedTotal), FheTypes.Uint32)
-        .withPermit(permit) 
-        .execute();
+      if (encryptedTotals) {
+        const [encETH, encUSDC] = encryptedTotals as [bigint, bigint];
         
-      setDecryptedTotal(Number(result));
-      setShowTotal(true);
+        const [resETH, resUSDC] = await Promise.all([
+            client.decryptForView(encETH, FheTypes.Uint32).withPermit(permit).execute(),
+            client.decryptForView(encUSDC, FheTypes.Uint32).withPermit(permit).execute()
+        ]);
+          
+        setDecryptedETH(Number(resETH));
+        setDecryptedUSDC(Number(resUSDC));
+        setShowTotal(true);
+      }
     } catch (err) {
       console.error("Decryption failed:", err);
     } finally {
@@ -554,151 +468,74 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
     }
   };
 
-  const isProcessing =
-    processStatus === "pending" || isProcessConfirming;
+  const isProcessing = processStatus === "pending" || isProcessConfirming;
 
   return (
     <div className="glass rounded-2xl p-6">
       <div className="flex items-center gap-3 mb-6">
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: "rgba(10,92,62,0.3)" }}
-        >
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(10,92,62,0.3)" }}>
           <TrendingUp size={17} className="text-emerald-400" />
         </div>
         <div>
-          <h3
-            className="font-bold text-white text-base"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Payroll Controls
-          </h3>
+          <h3 className="font-bold text-white text-base" style={{ fontFamily: "var(--font-display)" }}>Payroll Controls</h3>
           <p className="text-xs text-slate-500">Manage payroll settlement</p>
         </div>
       </div>
 
-      <div
-        className="rounded-xl p-4 mb-4"
-        style={{
-          background: "rgba(10,92,62,0.12)",
-          border: "1px solid rgba(0,255,157,0.12)",
-        }}
-      >
+      <div className="rounded-xl p-4 mb-4" style={{ background: "rgba(10,92,62,0.12)", border: "1px solid rgba(0,255,157,0.12)" }}>
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-            Total Payroll (Encrypted)
-          </span>
+          <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">Dual Budget (Encrypted)</span>
           <button
             onClick={handleRevealTotal}
-            disabled={isDecrypting || !encryptedTotal}
+            disabled={isDecrypting || !encryptedTotals}
             className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
           >
-            {isDecrypting ? (
-              <>
-                <Loader2 size={12} className="animate-spin" />
-                Decrypting...
-              </>
-            ) : showTotal ? (
-              <>
-                <EyeOff size={12} />
-                Hide
-              </>
-            ) : (
-              <>
-                <Eye size={12} />
-                Reveal
-              </>
-            )}
+            {isDecrypting ? <><Loader2 size={12} className="animate-spin" /> Decrypting...</> : showTotal ? <><EyeOff size={12} /> Hide</> : <><Eye size={12} /> Reveal</>}
           </button>
         </div>
 
         <AnimatePresence mode="wait">
-          {showTotal && decryptedTotal !== null ? (
-            <motion.div
-              key="revealed"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="flex items-baseline gap-1"
-            >
-              <span
-                className="text-3xl font-bold text-emerald-400"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                ${decryptedTotal.toLocaleString()}
-              </span>
-              <span className="text-sm text-slate-500">/cycle</span>
+          {showTotal && decryptedETH !== null && decryptedUSDC !== null ? (
+            <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex flex-col gap-2">
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-blue-400" style={{ fontFamily: "var(--font-display)" }}>
+                  {decryptedETH.toLocaleString()}
+                </span>
+                <span className="text-sm text-slate-500">ETH /cycle</span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>
+                  ${decryptedUSDC.toLocaleString()}
+                </span>
+                <span className="text-sm text-slate-500">USDC /cycle</span>
+              </div>
             </motion.div>
           ) : (
-            <motion.div
-              key="hidden"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex items-center gap-2"
-            >
+            <motion.div key="hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
               <div className="flex gap-1">
-                {[...Array(8)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-5 h-5 rounded"
-                    style={{ background: "rgba(0,255,157,0.08)" }}
-                  />
-                ))}
+                {[...Array(8)].map((_, i) => <div key={i} className="w-5 h-5 rounded" style={{ background: "rgba(0,255,157,0.08)" }} />)}
               </div>
               <Lock size={12} className="text-slate-600" />
             </motion.div>
           )}
         </AnimatePresence>
-
-        {encryptedTotal && (
-          <p className="text-xs text-slate-600 mt-2 font-mono truncate">
-            ct: {String(encryptedTotal).slice(0, 24)}...
-          </p>
-        )}
       </div>
 
       <AnimatePresence>
         {processStatus === "success" && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5 mb-3"
-          >
-            <CheckCircle2 size={14} />
-            Payroll processed successfully!
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5 mb-3">
+            <CheckCircle2 size={14} /> Payroll processed successfully!
           </motion.div>
         )}
         {processStatus === "error" && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5 mb-3"
-          >
-            <AlertCircle size={14} />
-            Transaction failed.
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5 mb-3">
+            <AlertCircle size={14} /> Transaction failed.
           </motion.div>
         )}
       </AnimatePresence>
 
-      <button
-        onClick={handleProcessPayroll}
-        disabled={isProcessing}
-        className="btn-green w-full"
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 size={16} className="animate-spin" />
-            Processing...
-          </>
-        ) : (
-          <>
-            <Play size={16} />
-            Process Payroll
-          </>
-        )}
+      <button onClick={handleProcessPayroll} disabled={isProcessing} className="btn-green w-full">
+        {isProcessing ? <><Loader2 size={16} className="animate-spin" /> Processing...</> : <><Play size={16} /> Process Payroll</>}
       </button>
     </div>
   );
@@ -714,32 +551,13 @@ export default function EmployerDashboard({ contractAddress }: EmployerDashboard
   const employeeList = (employees as `0x${string}`[] | undefined) ?? [];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
       <AddressBanner address={contractAddress} />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <StatCard
-          icon={UserPlus}
-          label="Employees"
-          value={String(employeeList.length)}
-          accent="purple"
-        />
-        <StatCard
-          icon={DollarSign}
-          label="Next Cycle"
-          value="Encrypted"
-          accent="green"
-        />
-        <StatCard
-          icon={Lock}
-          label="FHE Layer"
-          value="Active"
-          accent="purple"
-        />
+        <StatCard icon={UserPlus} label="Employees" value={String(employeeList.length)} accent="purple" />
+        <StatCard icon={DollarSign} label="Next Cycle" value="Encrypted" accent="green" />
+        <StatCard icon={Lock} label="FHE Layer" value="Active" accent="purple" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

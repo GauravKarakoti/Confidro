@@ -46,6 +46,16 @@ export const FACTORY_ABI = [
           "internalType": "address",
           "name": "payrollContract",
           "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "tokenETH",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "tokenUSDC",
+          "type": "address"
         }
       ],
       "name": "createEscrow",
@@ -183,6 +193,12 @@ export const PAYROLL_ABI = [
           "internalType": "euint32",
           "name": "encryptedSalary",
           "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint8",
+          "name": "currency",
+          "type": "uint8"
         }
       ],
       "name": "EmployeeAdded",
@@ -228,6 +244,12 @@ export const PAYROLL_ABI = [
           "internalType": "euint32",
           "name": "amount",
           "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint8",
+          "name": "currency",
+          "type": "uint8"
         }
       ],
       "name": "SalaryWithdrawn",
@@ -279,6 +301,11 @@ export const PAYROLL_ABI = [
           "internalType": "struct InEuint32",
           "name": "encryptedSalaryInput",
           "type": "tuple"
+        },
+        {
+          "internalType": "uint8",
+          "name": "currency",
+          "type": "uint8"
         }
       ],
       "name": "addEmployee",
@@ -320,11 +347,16 @@ export const PAYROLL_ABI = [
     },
     {
       "inputs": [],
-      "name": "getEncryptedTotal",
+      "name": "getEncryptedTotals",
       "outputs": [
         {
           "internalType": "euint32",
-          "name": "",
+          "name": "ethTotal",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "euint32",
+          "name": "usdcTotal",
           "type": "bytes32"
         }
       ],
@@ -333,8 +365,13 @@ export const PAYROLL_ABI = [
     },
     {
       "inputs": [],
-      "name": "getTotalForCompliance",
+      "name": "getTotalsForCompliance",
       "outputs": [
+        {
+          "internalType": "euint32",
+          "name": "",
+          "type": "bytes32"
+        },
         {
           "internalType": "euint32",
           "name": "",
@@ -396,6 +433,25 @@ export const PAYROLL_ABI = [
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "paymentCurrency",
+      "outputs": [
+        {
+          "internalType": "uint8",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "privaraEscrow",
       "outputs": [
@@ -449,7 +505,20 @@ export const PAYROLL_ABI = [
     },
     {
       "inputs": [],
-      "name": "totalPayroll",
+      "name": "totalPayrollETH",
+      "outputs": [
+        {
+          "internalType": "euint32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalPayrollUSDC",
       "outputs": [
         {
           "internalType": "euint32",
@@ -484,7 +553,12 @@ export const ESCROW_ABI = [
         },
         {
           "internalType": "address",
-          "name": "_paymentToken",
+          "name": "_tokenETH",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_tokenUSDC",
           "type": "address"
         }
       ],
@@ -517,6 +591,12 @@ export const ESCROW_ABI = [
           "indexed": true,
           "internalType": "address",
           "name": "sender",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "token",
           "type": "address"
         },
         {
@@ -555,6 +635,11 @@ export const ESCROW_ABI = [
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
+        },
+        {
+          "internalType": "uint8",
+          "name": "currency",
+          "type": "uint8"
         }
       ],
       "name": "depositTokens",
@@ -573,6 +658,11 @@ export const ESCROW_ABI = [
           "internalType": "euint32[]",
           "name": "amounts",
           "type": "bytes32[]"
+        },
+        {
+          "internalType": "uint8[]",
+          "name": "currencies",
+          "type": "uint8[]"
         }
       ],
       "name": "distribute",
@@ -595,7 +685,20 @@ export const ESCROW_ABI = [
     },
     {
       "inputs": [],
-      "name": "paymentToken",
+      "name": "payrollContract",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "tokenETH",
       "outputs": [
         {
           "internalType": "contract IFHERC20",
@@ -608,10 +711,10 @@ export const ESCROW_ABI = [
     },
     {
       "inputs": [],
-      "name": "payrollContract",
+      "name": "tokenUSDC",
       "outputs": [
         {
-          "internalType": "address",
+          "internalType": "contract IFHERC20",
           "name": "",
           "type": "address"
         }
@@ -638,6 +741,11 @@ export const ESCROW_ABI = [
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
+        },
+        {
+          "internalType": "uint8",
+          "name": "currency",
+          "type": "uint8"
         }
       ],
       "name": "withdrawTokens",

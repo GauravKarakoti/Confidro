@@ -4,22 +4,26 @@ pragma solidity ^0.8.24;
 import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 interface IPrivaraEscrow {
-    function distribute(address[] memory employees, euint32[] memory amounts) external;
+    function distribute(address[] memory employees, euint32[] memory amounts, uint8[] memory currencies) external;
 }
 
 contract ConfidroPayroll {
     address public owner;
+    
     mapping(address => euint32) public salaries;
     mapping(address => bool) public hasActiveSalary;
-    euint32 public totalPayroll;
+    mapping(address => uint8) public paymentCurrency; // 0 = ETH, 1 = USDC
+    
+    euint32 public totalPayrollETH;
+    euint32 public totalPayrollUSDC;
+    
     address[] public employeeList;
-
     mapping(address => bool) public isCompliance;
     address public privaraEscrow;
 
-    event EmployeeAdded(address indexed employee, euint32 encryptedSalary);
+    event EmployeeAdded(address indexed employee, euint32 encryptedSalary, uint8 currency);
     event PayrollProcessed(uint256 timestamp);
-    event SalaryWithdrawn(address indexed employee, euint32 amount);
+    event SalaryWithdrawn(address indexed employee, euint32 amount, uint8 currency);
     event ComplianceAdded(address indexed officer);
     event PrivaraEscrowSet(address indexed escrowAddress);
 
@@ -30,9 +34,14 @@ contract ConfidroPayroll {
 
     constructor(address _owner) {
         owner = _owner;
-        totalPayroll = FHE.asEuint32(0);
-        FHE.allowThis(totalPayroll);
-        FHE.allow(totalPayroll, owner);
+        totalPayrollETH = FHE.asEuint32(0);
+        totalPayrollUSDC = FHE.asEuint32(0);
+        
+        FHE.allowThis(totalPayrollETH);
+        FHE.allow(totalPayrollETH, owner);
+        
+        FHE.allowThis(totalPayrollUSDC);
+        FHE.allow(totalPayrollUSDC, owner);
     }
 
     function setPrivaraEscrow(address _escrow) external onlyOwner {
@@ -42,72 +51,94 @@ contract ConfidroPayroll {
 
     function addCompliance(address officer) external onlyOwner {
         isCompliance[officer] = true;
-        // GRANT PERMISSION: Instead of sealing, we allow the officer to decrypt the total.
-        FHE.allow(totalPayroll, officer);
+        FHE.allow(totalPayrollETH, officer);
+        FHE.allow(totalPayrollUSDC, officer);
         emit ComplianceAdded(officer);
     }
 
-    // This function now simply returns the ciphertext. 
-    // The Compliance Officer's frontend will use their Permit to decrypt it.
-    function getTotalForCompliance() public view returns (euint32) {
+    function getTotalsForCompliance() public view returns (euint32, euint32) {
         require(isCompliance[msg.sender], "Not authorized");
-        return totalPayroll;
+        return (totalPayrollETH, totalPayrollUSDC);
     }
     
-    function addEmployee(address employee, InEuint32 calldata encryptedSalaryInput) public onlyOwner {
-        euint32 encryptedSalary = FHE.asEuint32(encryptedSalaryInput);
+    // currency: 0 for ETH, 1 for USDC
+    function addEmployee(address employee, InEuint32 calldata encryptedSalaryInput, uint8 currency) public onlyOwner {
+        require(currency == 0 || currency == 1, "Invalid currency");
         
+        euint32 encryptedSalary = FHE.asEuint32(encryptedSalaryInput);
         FHE.allowThis(encryptedSalary);
         FHE.allow(encryptedSalary, owner);
         FHE.allow(encryptedSalary, employee);
 
         salaries[employee] = encryptedSalary;
+        paymentCurrency[employee] = currency;
         hasActiveSalary[employee] = true;
         employeeList.push(employee);
         
-        totalPayroll = FHE.add(totalPayroll, encryptedSalary);
-        FHE.allowThis(totalPayroll);
-        FHE.allow(totalPayroll, owner);
+        if (currency == 0) {
+            totalPayrollETH = FHE.add(totalPayrollETH, encryptedSalary);
+            FHE.allowThis(totalPayrollETH);
+            FHE.allow(totalPayrollETH, owner);
+        } else {
+            totalPayrollUSDC = FHE.add(totalPayrollUSDC, encryptedSalary);
+            FHE.allowThis(totalPayrollUSDC);
+            FHE.allow(totalPayrollUSDC, owner);
+        }
         
-        // Re-apply compliance permissions to the new totalPayroll ciphertext handle
-        // (In FHE, addition creates a new handle/hash)
+        // Re-apply compliance permissions to the new totalPayroll ciphertext handles
         for (uint i = 0; i < employeeList.length; i++) {
             if (isCompliance[employeeList[i]]) {
-                FHE.allow(totalPayroll, employeeList[i]);
+                if (currency == 0) {
+                    FHE.allow(totalPayrollETH, employeeList[i]);
+                } else {
+                    FHE.allow(totalPayrollUSDC, employeeList[i]);
+                }
             }
         }
         
-        emit EmployeeAdded(employee, encryptedSalary);
+        emit EmployeeAdded(employee, encryptedSalary, currency);
     }
     
     function processPayroll() public onlyOwner {
         emit PayrollProcessed(block.timestamp);
         if (privaraEscrow != address(0)) {
             euint32[] memory amounts = new euint32[](employeeList.length);
+            uint8[] memory currencies = new uint8[](employeeList.length);
+            
             for (uint i = 0; i < employeeList.length; i++) {
-                euint32 empSalary = salaries[employeeList[i]];
+                address emp = employeeList[i];
+                euint32 empSalary = salaries[emp];
+                
                 FHE.allow(empSalary, privaraEscrow);
                 amounts[i] = empSalary;
+                currencies[i] = paymentCurrency[emp];
             }
-            IPrivaraEscrow(privaraEscrow).distribute(employeeList, amounts);
+            IPrivaraEscrow(privaraEscrow).distribute(employeeList, amounts, currencies);
         }
     }
 
     function withdrawSalary() public {
         require(hasActiveSalary[msg.sender], "No salary to withdraw");
         euint32 salary = salaries[msg.sender];
-        hasActiveSalary[msg.sender] = false;
-        totalPayroll = FHE.sub(totalPayroll, salary);
+        uint8 currency = paymentCurrency[msg.sender];
         
-        FHE.allowThis(totalPayroll);
-        FHE.allow(totalPayroll, owner);
-        emit SalaryWithdrawn(msg.sender, salary);
+        hasActiveSalary[msg.sender] = false;
+        
+        if (currency == 0) {
+            totalPayrollETH = FHE.sub(totalPayrollETH, salary);
+            FHE.allowThis(totalPayrollETH);
+            FHE.allow(totalPayrollETH, owner);
+        } else {
+            totalPayrollUSDC = FHE.sub(totalPayrollUSDC, salary);
+            FHE.allowThis(totalPayrollUSDC);
+            FHE.allow(totalPayrollUSDC, owner);
+        }
+        
+        emit SalaryWithdrawn(msg.sender, salary, currency);
     }
 
-    // --- RESTORED GETTERS REQUIRED BY TESTS AND FRONTEND ---
-
-    function getEncryptedTotal() public view returns (euint32) {
-        return totalPayroll;
+    function getEncryptedTotals() public view returns (euint32 ethTotal, euint32 usdcTotal) {
+        return (totalPayrollETH, totalPayrollUSDC);
     }
 
     function getEmployees() public view returns (address[] memory) {
