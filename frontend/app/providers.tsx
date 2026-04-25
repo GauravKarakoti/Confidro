@@ -12,7 +12,7 @@ const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!;
 const metadata = {
   name: "Confidro",
   description: "Confidro Payroll",
-  url: "https://confidro.com", 
+  url: process.env.NEXT_PUBLIC_FRONTEND_URL!,
   icons: ["https://avatars.githubusercontent.com/u/37784886"]
 };
 
@@ -29,6 +29,7 @@ const wagmiConfig = defaultWagmiConfig({
 createWeb3Modal({
   wagmiConfig,
   projectId,
+  enableAnalytics: false,
   themeVariables: {
     '--w3m-accent': '#5A29E4', // Matching your previous accent color
     '--w3m-border-radius-master': '2px', // Gives the modal a modern look
