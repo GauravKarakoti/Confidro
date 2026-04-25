@@ -394,12 +394,10 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
     try {
       setIsDecrypting(true);
 
-      // 1. Ensure wallet is connected
       if (!publicClient || !walletClient || !userAddress || !chainId) {
         throw new Error("Please connect your wallet first.");
       }
 
-      // 2. Guard against uninitialized ciphertext
       if (!encryptedTotal || BigInt(encryptedTotal) === BigInt(0)) {
         throw new Error("No payroll data available yet. Add an employee first.");
       }
@@ -416,14 +414,10 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
       });
       const client = await createCofheClient(config);
 
-      // 3. Connect the CoFHE client
       await client.connect(publicClient, walletClient);
 
-      // 🟢 FIX 1: Correctly request/retrieve the Permit object from the permits module
-      // This will prompt MetaMask if a valid permit isn't already cached for this chain/account.
       const permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
 
-      // 🟢 FIX 2: Pass the fully resolved permit object directly into the decryption builder
       const result = await client
         .decryptForView(BigInt(encryptedTotal), FheTypes.Uint32)
         .withPermit(permit) 

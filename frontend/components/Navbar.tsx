@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ShieldCheck } from "lucide-react";
+import Image from "next/image"; // Added Image import
 import { ConnectKitButton } from "connectkit";
 
 export default function Navbar() {
@@ -19,13 +19,22 @@ export default function Navbar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-2.5">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center"
-          style={{
-            background: "linear-gradient(135deg, #5A29E4 0%, #0A5C3E 100%)",
-          }}
-        >
-          <ShieldCheck size={16} className="text-white" />
+        {/* Replace the ShieldCheck with your logo */}
+        <div className="flex items-center justify-center">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{
+              background: "linear-gradient(135deg, #5A29E4 0%, #0A5C3E 100%)",
+            }}
+          >
+            <Image 
+              src="/logo.png"
+              alt="Confidro Logo" 
+              width={32} 
+              height={32} 
+              className="object-contain"
+            />
+          </div>
         </div>
         <span
           className="text-lg font-bold tracking-tight text-white"
