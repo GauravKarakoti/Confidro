@@ -1,3 +1,5 @@
 {
-  "ConfidroPayrollFactory": "0x3a31BA68f5fb0e5EF5e010b21C95939187E9A19b"
+  "ConfidroPayrollFactory": "0x7dAE8D053Aeb8eDa3cc1f907e01d89Cda10EBA10",
+  "WrapperETH": "0xA6bcb09a094052e492A8E2872f1F0778647cDBaA",
+  "WrapperUSDC": "0x7fEe94d61C986f8c98bEee8881D3c146aa441841"
 }

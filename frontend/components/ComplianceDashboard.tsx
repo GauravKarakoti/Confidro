@@ -21,10 +21,14 @@ export default function ComplianceDashboard({ contractAddress }: { contractAddre
   });
 
   const handleRevealComplianceTotal = async () => {
+    if (!encryptedTotal || !Array.isArray(encryptedTotal)) return;
+
     try {
       setIsDecrypting(true);
       const cofheWeb = await import("@cofhe/sdk/web");
+      const cofheCore = await import("@cofhe/sdk"); // Import core for types
       const { createCofheConfig, createCofheClient } = cofheWeb;
+      const { FheTypes } = cofheCore;
 
       const config = createCofheConfig({ environment: "web", supportedChains: [baseSepolia] });
       const client = await createCofheClient(config);
@@ -33,9 +37,13 @@ export default function ComplianceDashboard({ contractAddress }: { contractAddre
       // Generate permit to prove identity to the FHE network
       const permit = await client.permits.getOrCreateSelfPermit(chainId!, userAddress!);
 
+      // FIX: encryptedTotal is [ethHandle, usdcHandle]
+      // We take index 1 for USDC and convert the 0x hex string to BigInt
+      const usdcHandle = BigInt(encryptedTotal[1]);
+
       // Decrypt the total payroll only (Selective Disclosure)
       const result = await client
-        .decryptForView(BigInt(encryptedTotal as string), 3) // Uint32
+        .decryptForView(usdcHandle, FheTypes.Uint32) 
         .withPermit(permit)
         .execute();
 

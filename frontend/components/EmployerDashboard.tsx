@@ -26,7 +26,7 @@ import {
   ShieldCheck,
   Anchor
 } from "lucide-react";
-import { ESCROW_ABI, FACTORY_ABI, FACTORY_CONTRACT_ADDRESS, PAYROLL_ABI } from "@/lib/contract";
+import { ESCROW_ABI, FACTORY_ABI, FACTORY_CONTRACT_ADDRESS, PAYROLL_ABI, WRAPPER_ETH_ADDRESS, WRAPPER_USDC_ADDRESS, WRAPPER_ABI } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
 
 interface EmployerDashboardProps {
@@ -65,33 +65,47 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
     });
   };
 
+  // UPDATED: Now passes the FHERC20 Wrappers to the Escrow
   const handleDeployEscrow = async () => {
-  try {
-    const hash = await writeContractAsync({
-      address: FACTORY_CONTRACT_ADDRESS,
-      abi: FACTORY_ABI, // Make sure you update this ABI in lib/contract.ts!
-      functionName: "createEscrow",
-      args: [
-        contractAddress, 
-        "0x_YOUR_FHE_WETH_ADDRESS", 
-        "0x_YOUR_FHE_USDC_ADDRESS"
-      ],
-    });
+    try {
+      const hash = await writeContractAsync({
+        address: FACTORY_CONTRACT_ADDRESS,
+        abi: FACTORY_ABI,
+        functionName: "createEscrow",
+        args: [
+          contractAddress, 
+          WRAPPER_ETH_ADDRESS,   // Passing the FHE Wrapper
+          WRAPPER_USDC_ADDRESS   // Passing the FHE Wrapper
+        ],
+      });
       console.log("Deploy tx:", hash);
-      alert("Escrow deploying! Please check your wallet/explorer. You'll need to link it once confirmed.");
-    } catch (e) {
-      console.error(e);
-    }
+      alert("Escrow deploying!");
+    } catch (e) { console.error(e); }
   };
 
+  // UPDATED: Standardized approval and deposit
   const handleDepositTokens = async () => {
     if (!hasEscrow) return;
     try {
+      const wrapperAddress = depositToken === "0" ? WRAPPER_ETH_ADDRESS : WRAPPER_USDC_ADDRESS;
+      const amountParsed = BigInt(Number(depositAmount) * 1e18);
+
+      // Step 1: Approve the Escrow to spend the Wrapper Tokens
+      await writeContractAsync({
+        address: wrapperAddress,
+        abi: WRAPPER_ABI,
+        functionName: "approve",
+        args: [currentEscrow as `0x${string}`, amountParsed],
+      });
+
+      alert("Approval successful! Now confirming deposit...");
+
+      // Step 2: Deposit into Escrow
       await writeContractAsync({
         address: currentEscrow as `0x${string}`,
         abi: ESCROW_ABI,
         functionName: "depositTokens",
-        args: [BigInt(Number(depositAmount) * 1e18), parseInt(depositToken)],
+        args: [amountParsed, parseInt(depositToken)],
       });
       setDepositAmount("");
     } catch (e) {
@@ -122,34 +136,18 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
         
         {!hasEscrow ? (
           <div className="flex flex-col gap-3">
-            <p className="text-xs text-slate-400">You don't have an escrow wallet set up for this organization. Deploy one to deposit payroll budgets.</p>
             <button onClick={handleDeployEscrow} className="btn-primary w-full sm:w-auto">
               Deploy Organization Escrow
             </button>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="bg-white/5 p-3 rounded-lg border border-white/10 text-xs font-mono text-slate-300 break-all">
-              <span className="text-emerald-400 block mb-1">Active Escrow Address:</span>
-              {String(currentEscrow)}
-            </div>
-            
             <div className="flex gap-2">
-              <select 
-                value={depositToken} 
-                onChange={(e) => setDepositToken(e.target.value as "0" | "1")}
-                className="input-field max-w-24"
-              >
-                <option value="0">ETH</option>
-                <option value="1">USDC</option>
+              <select value={depositToken} onChange={(e) => setDepositToken(e.target.value as "0" | "1")} className="input-field max-w-24">
+                <option value="0">FHE-ETH</option>
+                <option value="1">FHE-USDC</option>
               </select>
-              <input 
-                type="number"
-                placeholder="Deposit Budget Amount" 
-                className="input-field flex-1" 
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)} 
-              />
+              <input type="number" placeholder="Amount (Ensure you have wrapped tokens)" className="input-field flex-1" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} />
               <button onClick={handleDepositTokens} className="btn-green">Deposit Budget</button>
             </div>
           </div>
@@ -338,7 +336,6 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
                 className="input-field pl-8"
                 disabled={isLoading}
                 required
-                min={1}
               />
             </div>
           </div>
@@ -425,14 +422,20 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
       const { createCofheConfig, createCofheClient } = cofheWeb;
       const { FheTypes } = cofheCore;
 
-      const config = createCofheConfig({ environment: "web", supportedChains: [baseSepolia] });
-      const client = await createCofheClient(config);
-      await client.connect(publicClient, walletClient);
-      const permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
-
-      if (encryptedTotals) {
-        const [encETH, encUSDC] = encryptedTotals as [bigint, bigint];
+      if (encryptedTotals && Array.isArray(encryptedTotals)) {
+        // FIX: Convert hex strings (0x...) to BigInt handles
+        const handles = encryptedTotals.map(h => BigInt(h));
+        const [encETH, encUSDC] = handles;
         
+        const config = createCofheConfig({ 
+            environment: "web", 
+            supportedChains: [baseSepolia] 
+        });
+        const client = await createCofheClient(config);
+        await client.connect(publicClient, walletClient);
+        const permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+
+        // Execute decryption
         const [resETH, resUSDC] = await Promise.all([
             client.decryptForView(encETH, FheTypes.Uint32).withPermit(permit).execute(),
             client.decryptForView(encUSDC, FheTypes.Uint32).withPermit(permit).execute()

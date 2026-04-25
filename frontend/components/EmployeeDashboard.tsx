@@ -23,9 +23,10 @@ import {
   Building,
   ArrowLeft,
   ChevronRight,
-  Plus
+  Plus,
+  Unlock
 } from "lucide-react";
-import { PAYROLL_ABI } from "@/lib/contract";
+import { PAYROLL_ABI, WRAPPER_ABI, WRAPPER_USDC_ADDRESS } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
 
 // ──────────────────────────────────────────────
@@ -84,7 +85,7 @@ function EmployeeRow({
 }
 
 // ──────────────────────────────────────────────
-// Withdraw card
+// Withdraw card (Updated with Unwrap mechanics)
 // ──────────────────────────────────────────────
 function WithdrawCard({
   contractAddress,
@@ -101,14 +102,16 @@ function WithdrawCard({
   const [showBalance, setShowBalance] = useState(false);
   const [decryptedBalance, setDecryptedBalance] = useState<number | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
+  const [unwrapAmount, setUnwrapAmount] = useState("");
 
   const { writeContractAsync } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const { data: encryptedSalary } = useReadContract({
-    address: contractAddress,
-    abi: PAYROLL_ABI,
-    functionName: "salaries",
+  // Read the user's Encrypted Wrapper Token Balance (not just the payroll struct)
+  const { data: encryptedBalance } = useReadContract({
+    address: WRAPPER_USDC_ADDRESS,
+    abi: WRAPPER_ABI,
+    functionName: "getEncryptedBalance",
     args: connectedAddress ? [connectedAddress as `0x${string}`] : undefined,
     query: {
       enabled: !!connectedAddress && isRegistered,
@@ -132,8 +135,8 @@ function WithdrawCard({
       const { createCofheConfig, createCofheClient } = cofheWeb;
       const { FheTypes } = cofheCore;
 
-      if (!encryptedSalary) {
-        throw new Error("No encrypted salary found or zero balance.");
+      if (!encryptedBalance) {
+        throw new Error("No encrypted balance found or zero balance.");
       }
 
       const config = createCofheConfig({ 
@@ -142,8 +145,9 @@ function WithdrawCard({
       });
       const client = await createCofheClient(config);
 
+      // Decrypt the Wrapper token balance
       const result = await client
-        .decryptForView(BigInt(encryptedSalary), FheTypes.Uint32)
+        .decryptForView(BigInt(encryptedBalance), FheTypes.Uint32)
         .withPermit()
         .execute();
         
@@ -175,6 +179,27 @@ function WithdrawCard({
     }
   }, [writeContractAsync, contractAddress]);
 
+  const handleUnwrap = async () => {
+    if (!unwrapAmount) return;
+    try {
+      setStatus("pending");
+      const hash = await writeContractAsync({
+        address: WRAPPER_USDC_ADDRESS,
+        abi: WRAPPER_ABI,
+        functionName: "unwrap",
+        args: [BigInt(Number(unwrapAmount) * 1e6)], // USDC has 6 decimals
+      });
+      setTxHash(hash);
+      setStatus("success");
+      setUnwrapAmount("");
+      setTimeout(() => setStatus("idle"), 5000);
+    } catch (err) {
+      setStatus("error");
+      console.error(err);
+      setTimeout(() => setStatus("idle"), 4000);
+    }
+  };
+
   const isLoading = status === "pending" || isConfirming;
 
   return (
@@ -184,8 +209,8 @@ function WithdrawCard({
           <Wallet size={17} className="text-emerald-400" />
         </div>
         <div>
-          <h3 className="font-bold text-white text-base" style={{ fontFamily: "var(--font-display)" }}>Withdraw Salary</h3>
-          <p className="text-xs text-slate-500">Claim your available balance</p>
+          <h3 className="font-bold text-white text-base" style={{ fontFamily: "var(--font-display)" }}>My Salary Wallet</h3>
+          <p className="text-xs text-slate-500">Manage your private funds</p>
         </div>
       </div>
 
@@ -193,9 +218,9 @@ function WithdrawCard({
       <div className="rounded-xl p-4 mb-4 flex items-center justify-between" style={{ background: "rgba(0,255,157,0.04)", border: "1px solid rgba(0,255,157,0.1)" }}>
         <div className="w-full">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Available Balance</span>
+            <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">FHE Encrypted Balance</span>
             {isRegistered && (
-              <button onClick={handleRevealBalance} disabled={isDecrypting || !encryptedSalary} className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50">
+              <button onClick={handleRevealBalance} disabled={isDecrypting || !encryptedBalance} className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50">
                 {isDecrypting ? (
                   <><Loader2 size={12} className="animate-spin" /> Decrypting...</>
                 ) : showBalance ? (
@@ -211,7 +236,7 @@ function WithdrawCard({
             {showBalance && decryptedBalance !== null ? (
               <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-baseline gap-1">
                 <span className="text-3xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>${decryptedBalance.toLocaleString()}</span>
-                <span className="text-sm text-slate-500">USD</span>
+                <span className="text-sm text-slate-500">FHE-USDC</span>
               </motion.div>
             ) : (
               <motion.div key="hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-3xl font-bold text-emerald-400 tracking-widest" style={{ fontFamily: "var(--font-display)", marginTop: "-4px" }}>
@@ -219,21 +244,17 @@ function WithdrawCard({
               </motion.div>
             )}
           </AnimatePresence>
-
-          <div className="text-xs text-slate-600 mt-1.5">
-            {showBalance ? "Your private balance revealed via FHE decryption" : "Amount is private — encrypted on-chain"}
-          </div>
         </div>
       </div>
 
       <div className="flex items-center gap-2 text-xs text-slate-500 mb-5">
-        <Clock size={12} /> Next payroll cycle: determined by employer
+        <Clock size={12} /> Funds arrive encrypted. Unwrap to send to external wallets.
       </div>
 
       <AnimatePresence>
         {status === "success" && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5 mb-3">
-            <CheckCircle2 size={14} /> Withdrawal successful! Funds sent to your wallet.
+            <CheckCircle2 size={14} /> Transaction successful!
           </motion.div>
         )}
         {status === "error" && (
@@ -243,13 +264,34 @@ function WithdrawCard({
         )}
       </AnimatePresence>
 
-      <button onClick={handleWithdraw} disabled={isLoading || !isRegistered} className="btn-green w-full">
-        {isLoading ? (
-          <><Loader2 size={16} className="animate-spin" /> {status === "pending" ? "Sending..." : "Confirming..."}</>
-        ) : (
-          <><ArrowDownToLine size={16} /> Withdraw My Salary</>
-        )}
-      </button>
+      <div className="space-y-3">
+        {/* Sign Contract Withdrawal */}
+        <button onClick={handleWithdraw} disabled={isLoading || !isRegistered} className="btn-primary w-full bg-slate-800 hover:bg-slate-700 text-white">
+          {isLoading && status !== "success" ? (
+            <><Loader2 size={16} className="animate-spin" /> Confirming...</>
+          ) : (
+            <><ArrowDownToLine size={16} /> Mark Salary Claimed</>
+          )}
+        </button>
+
+        {/* Unwrap to Public Wallet */}
+        <div className="pt-4 mt-2 border-t border-emerald-500/20">
+          <label className="block text-xs font-medium text-slate-400 mb-2">Unwrap to Public Base Sepolia USDC</label>
+          <div className="flex gap-2">
+            <input 
+              type="number" 
+              placeholder="Amount to Unwrap" 
+              className="input-field flex-1"
+              value={unwrapAmount}
+              onChange={(e) => setUnwrapAmount(e.target.value)}
+              disabled={isLoading}
+            />
+            <button onClick={handleUnwrap} disabled={isLoading || !unwrapAmount} className="btn-green">
+              {isLoading ? <Loader2 size={16} className="animate-spin" /> : <><Unlock size={14} /> Unwrap</>}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
