@@ -2,9 +2,7 @@
 
 import { motion } from "framer-motion";
 import { ShieldCheck } from "lucide-react";
-
-// 1. Create a bypassed reference to the custom element
-const W3mButton = "w3m-button" as any;
+import { ConnectKitButton } from "connectkit";
 
 export default function Navbar() {
   return (
@@ -45,8 +43,8 @@ export default function Navbar() {
           Base Sepolia
         </span>
         
-        {/* 2. Use the capitalized bypassed component */}
-        <W3mButton balance="hide" size="sm" />
+        {/* ConnectKit Button Drop-in */}
+        <ConnectKitButton />
       </div>
     </motion.nav>
   );
