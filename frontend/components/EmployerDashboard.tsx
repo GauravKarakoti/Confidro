@@ -85,14 +85,12 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
     }
   };
 
-  // UPDATED: Deposit logic matching the new Escrow behavior
   const handleDepositTokens = async () => {
     if (!hasEscrow) return;
     try {
       const isETH = depositToken === "0";
       const decimals = isETH ? 18 : 6;
       
-      // Calculate amount based on exact decimals
       const amountParsed = BigInt(Math.floor(Number(depositAmount) * Math.pow(10, decimals)));
 
       if (isETH) {
@@ -102,22 +100,21 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
           abi: ESCROW_ABI,
           functionName: "depositTokens",
           args: [amountParsed, 0],
-          value: amountParsed, // Crucial: Send native ETH with the transaction
+          value: amountParsed, 
+          gas: BigInt(8000000), // <-- ADD THIS: Bypass FHE gas estimation failure
         });
       } else {
         if (!publicClient) throw new Error("Public client not found");
 
-        // Step 1: Get the standard USDC underlying address from the wrapper
         const underlyingUSDC = await publicClient.readContract({
           address: WRAPPER_USDC_ADDRESS,
           abi: WRAPPER_ABI,
           functionName: "underlying",
         });
 
-        // Step 2: Approve the Escrow to spend standard USDC
         await writeContractAsync({
           address: underlyingUSDC as `0x${string}`,
-          abi: erc20Abi, // Using standard ERC20 ABI
+          abi: erc20Abi, 
           functionName: "approve",
           args: [currentEscrow as `0x${string}`, amountParsed],
         });
@@ -130,6 +127,7 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
           abi: ESCROW_ABI,
           functionName: "depositTokens",
           args: [amountParsed, 1],
+          gas: BigInt(8000000), // <-- ADD THIS: Bypass FHE gas estimation failure
         });
       }
       setDepositAmount("");
