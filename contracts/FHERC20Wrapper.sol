@@ -5,18 +5,32 @@ import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+// 1. Add the IWETH interface at the top
+interface IWETH {
+    function deposit() external payable;
+    function withdraw(uint wad) external;
+}
+
 contract FHERC20Wrapper {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable underlying;
     uint8 public immutable decimals;
+    
+    // 2. Add an indicator for WETH
+    bool public immutable isWETH; 
 
     mapping(address => euint64) internal _balances;
     mapping(address => mapping(address => uint256)) public allowances;
 
-    constructor(address _underlying, uint8 _decimals) {
+    // 3. Add receive function so the contract can receive native ETH from WETH unwrapping
+    receive() external payable {}
+
+    // 4. Update the constructor to accept the isWETH flag
+    constructor(address _underlying, uint8 _decimals, bool _isWETH) {
         underlying = IERC20(_underlying);
         decimals = _decimals;
+        isWETH = _isWETH;
     }
 
     function wrap(uint256 amount) external {
@@ -36,23 +50,25 @@ contract FHERC20Wrapper {
     function unwrap(uint256 amount) external {
         euint64 encryptedAmount = FHE.asEuint64(amount);
         
-        // FIX: Replaced FHE.req with an FHE.select pattern or internal check
-        // Since FHE.req is missing, we perform a subtraction that saturates at 0 
-        // or simply subtract. In FHE protocols, we often use 'select' to ensure 
-        // the balance doesn't go negative if the user tries to unwrap more than they have.
-        
         ebool canUnwrap = FHE.lte(encryptedAmount, _balances[msg.sender]);
         
-        // If they have enough, subtract 'amount', otherwise subtract 0
         euint64 amountToSubtract = FHE.select(canUnwrap, encryptedAmount, FHE.asEuint64(0));
         _balances[msg.sender] = FHE.sub(_balances[msg.sender], amountToSubtract);
         
         FHE.allowThis(_balances[msg.sender]);
         FHE.allow(_balances[msg.sender], msg.sender);
 
-        // Note: In a fully private unwrap, the public transfer should be handled 
-        // carefully. Here we assume 'amount' is public since it's passed as uint256.
-        underlying.safeTransfer(msg.sender, amount);
+        // 5. Update the withdrawal logic based on the token type
+        if (isWETH) {
+            // Convert WETH to native ETH
+            IWETH(address(underlying)).withdraw(amount);
+            // Send native ETH to the user
+            (bool success, ) = msg.sender.call{value: amount}("");
+            require(success, "ETH transfer failed");
+        } else {
+            // Standard ERC20 transfer for tokens like USDC
+            underlying.safeTransfer(msg.sender, amount);
+        }
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {

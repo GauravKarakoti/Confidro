@@ -1,8 +1,8 @@
 export const FACTORY_CONTRACT_ADDRESS = 
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`);
 
-export const WRAPPER_ETH_ADDRESS = "0x46a531930975205801F1E631c9EF9446B3EbD36d" as `0x${string}`;
-export const WRAPPER_USDC_ADDRESS = "0x33f3a1fDdce44B35D94a4de799D150380968f570" as `0x${string}`;
+export const WRAPPER_ETH_ADDRESS = "0xE32A9c40874AD9f540B5381cF3B7E15CB9afbd37" as `0x${string}`;
+export const WRAPPER_USDC_ADDRESS = "0xED4484f95b1bB81Fd0ae1C61a1f2354Bb0a88bd4" as `0x${string}`;
 
 export const FACTORY_ABI = [
     {
@@ -708,6 +708,11 @@ export const WRAPPER_ABI = [
           "internalType": "uint8",
           "name": "_decimals",
           "type": "uint8"
+        },
+        {
+          "internalType": "bool",
+          "name": "_isWETH",
+          "type": "bool"
         }
       ],
       "stateMutability": "nonpayable",
@@ -816,6 +821,19 @@ export const WRAPPER_ABI = [
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "isWETH",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -912,5 +930,9 @@ export const WRAPPER_ABI = [
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "receive"
     }
   ] as const;

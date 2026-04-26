@@ -13,10 +13,10 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
 	// console.log("Deploying FHE Wrappers...");
 	// const FHERC20Wrapper = await ethers.getContractFactory('FHERC20Wrapper')
 	
-	// const wrapperETH = await FHERC20Wrapper.deploy(BASE_SEPOLIA_WETH, 18)
+	// const wrapperETH = await FHERC20Wrapper.deploy(BASE_SEPOLIA_WETH, 18, true)
 	// await wrapperETH.waitForDeployment()
 	
-	// const wrapperUSDC = await FHERC20Wrapper.deploy(BASE_SEPOLIA_USDC, 6)
+	// const wrapperUSDC = await FHERC20Wrapper.deploy(BASE_SEPOLIA_USDC, 6, false)
 	// await wrapperUSDC.waitForDeployment()
 
 	// console.log(`WrapperETH: ${wrapperETH.target} | WrapperUSDC: ${wrapperUSDC.target}`)
