@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // This helps Next.js ignore the root-level configuration if it's interfering
+  experimental: {
+    externalDir: true,
+  },
 };
 
 export default nextConfig;
