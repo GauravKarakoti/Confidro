@@ -115,11 +115,17 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
           functionName: "underlying",
         });
 
-        await writeContractAsync({
+        // Step 2: Approve the Escrow to spend the underlying USDC
+        const approveTxHash = await writeContractAsync({
           address: underlyingUSDC as `0x${string}`,
           abi: erc20Abi, 
           functionName: "approve",
           args: [currentEscrow as `0x${string}`, amountParsed],
+        });
+
+        // 🚨 CRITICAL FIX: Wait for the approval transaction to be mined
+        await publicClient.waitForTransactionReceipt({ 
+          hash: approveTxHash 
         });
 
         alert("Approval successful! Now confirming deposit...");
@@ -136,6 +142,7 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
       setDepositAmount("");
     } catch (e) {
       console.error(e);
+      alert("Transaction failed. Check console for details.");
     }
   };
 
