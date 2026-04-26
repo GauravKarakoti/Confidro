@@ -26,8 +26,9 @@ import {
   ShieldCheck,
   Anchor
 } from "lucide-react";
-import { ESCROW_ABI, FACTORY_ABI, FACTORY_CONTRACT_ADDRESS, PAYROLL_ABI, WRAPPER_ETH_ADDRESS, WRAPPER_USDC_ADDRESS, WRAPPER_ABI } from "@/lib/contract";
+import { ESCROW_ABI, PAYROLL_ABI, WRAPPER_ETH_ADDRESS, WRAPPER_USDC_ADDRESS, WRAPPER_ABI } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
+import { erc20Abi } from "viem";
 
 interface EmployerDashboardProps {
   contractAddress: `0x${string}`;
@@ -47,6 +48,7 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   const [depositAmount, setDepositAmount] = useState("");
   const [depositToken, setDepositToken] = useState<"0" | "1">("0");
   const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient(); // Added to fetch underlying USDC address
 
   const { data: currentEscrow } = useReadContract({
     address: contractAddress,
@@ -68,12 +70,12 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   const handleDeployEscrow = async () => {
     try {
       const hash = await writeContractAsync({
-        address: contractAddress, // Call the Payroll contract directly, NOT the Factory
+        address: contractAddress,
         abi: PAYROLL_ABI,
         functionName: "deployAndSetEscrow",
         args: [
-          WRAPPER_ETH_ADDRESS,   // Passing the FHE Wrapper
-          WRAPPER_USDC_ADDRESS   // Passing the FHE Wrapper
+          WRAPPER_ETH_ADDRESS,
+          WRAPPER_USDC_ADDRESS 
         ],
       });
       console.log("Deploy tx:", hash);
@@ -83,30 +85,53 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
     }
   };
 
-  // UPDATED: Standardized approval and deposit
+  // UPDATED: Deposit logic matching the new Escrow behavior
   const handleDepositTokens = async () => {
     if (!hasEscrow) return;
     try {
-      const wrapperAddress = depositToken === "0" ? WRAPPER_ETH_ADDRESS : WRAPPER_USDC_ADDRESS;
-      const amountParsed = BigInt(Number(depositAmount) * 1e18);
+      const isETH = depositToken === "0";
+      const decimals = isETH ? 18 : 6;
+      
+      // Calculate amount based on exact decimals
+      const amountParsed = BigInt(Math.floor(Number(depositAmount) * Math.pow(10, decimals)));
 
-      // Step 1: Approve the Escrow to spend the Wrapper Tokens
-      await writeContractAsync({
-        address: wrapperAddress,
-        abi: WRAPPER_ABI,
-        functionName: "approve",
-        args: [currentEscrow as `0x${string}`, amountParsed],
-      });
+      if (isETH) {
+        // Step 1: Deposit Native ETH (no approval required)
+        await writeContractAsync({
+          address: currentEscrow as `0x${string}`,
+          abi: ESCROW_ABI,
+          functionName: "depositTokens",
+          args: [amountParsed, 0],
+          value: amountParsed, // Crucial: Send native ETH with the transaction
+        });
+      } else {
+        if (!publicClient) throw new Error("Public client not found");
 
-      alert("Approval successful! Now confirming deposit...");
+        // Step 1: Get the standard USDC underlying address from the wrapper
+        const underlyingUSDC = await publicClient.readContract({
+          address: WRAPPER_USDC_ADDRESS,
+          abi: WRAPPER_ABI,
+          functionName: "underlying",
+        });
 
-      // Step 2: Deposit into Escrow
-      await writeContractAsync({
-        address: currentEscrow as `0x${string}`,
-        abi: ESCROW_ABI,
-        functionName: "depositTokens",
-        args: [amountParsed, parseInt(depositToken)],
-      });
+        // Step 2: Approve the Escrow to spend standard USDC
+        await writeContractAsync({
+          address: underlyingUSDC as `0x${string}`,
+          abi: erc20Abi, // Using standard ERC20 ABI
+          functionName: "approve",
+          args: [currentEscrow as `0x${string}`, amountParsed],
+        });
+
+        alert("Approval successful! Now confirming deposit...");
+
+        // Step 3: Deposit into Escrow
+        await writeContractAsync({
+          address: currentEscrow as `0x${string}`,
+          abi: ESCROW_ABI,
+          functionName: "depositTokens",
+          args: [amountParsed, 1],
+        });
+      }
       setDepositAmount("");
     } catch (e) {
       console.error(e);
@@ -144,12 +169,21 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
           <div className="space-y-4">
             <div className="flex gap-2">
               <select value={depositToken} onChange={(e) => setDepositToken(e.target.value as "0" | "1")} className="input-field max-w-24">
-                <option value="0">FHE-ETH</option>
-                <option value="1">FHE-USDC</option>
+                <option value="0">ETH</option>
+                <option value="1">USDC</option>
               </select>
-              <input type="number" placeholder="Amount (Ensure you have wrapped tokens)" className="input-field flex-1" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} />
+              <input 
+                 type="number" 
+                 placeholder="Amount to deposit" 
+                 className="input-field flex-1" 
+                 value={depositAmount} 
+                 onChange={(e) => setDepositAmount(e.target.value)} 
+              />
               <button onClick={handleDepositTokens} className="btn-green">Deposit Budget</button>
             </div>
+            <p className="text-xs text-slate-500">
+              *The escrow automatically handles FHE wrapping upon deposit.
+            </p>
           </div>
         )}
       </div>
