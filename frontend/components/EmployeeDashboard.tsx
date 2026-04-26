@@ -25,7 +25,8 @@ import {
   Plus,
   Unlock
 } from "lucide-react";
-import { PAYROLL_ABI, WRAPPER_ABI, WRAPPER_USDC_ADDRESS } from "@/lib/contract";
+// Add WRAPPER_ETH_ADDRESS to your imports
+import { PAYROLL_ABI, WRAPPER_ABI, WRAPPER_USDC_ADDRESS, WRAPPER_ETH_ADDRESS } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
 
 // ──────────────────────────────────────────────
@@ -84,7 +85,7 @@ function EmployeeRow({
 }
 
 // ──────────────────────────────────────────────
-// Withdraw card (Strictly View & Unwrap Flow)
+// Withdraw card (Multi-Currency Support)
 // ──────────────────────────────────────────────
 function WithdrawCard({
   connectedAddress,
@@ -93,6 +94,9 @@ function WithdrawCard({
   connectedAddress?: string;
   isRegistered: boolean;
 }) {
+  const [currency, setCurrency] = useState<"USDC" | "ETH">("USDC");
+  const activeAddress = currency === "USDC" ? WRAPPER_USDC_ADDRESS : WRAPPER_ETH_ADDRESS;
+
   const [status, setStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined);
   
@@ -104,9 +108,17 @@ function WithdrawCard({
   const { writeContractAsync } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
 
-  // Read the user's Encrypted Wrapper Token Balance
+  // Reset UI states when the user toggles the currency
+  useEffect(() => {
+    setShowBalance(false);
+    setDecryptedBalance(null);
+    setUnwrapAmount("");
+    setStatus("idle");
+  }, [currency]);
+
+  // Read the user's Encrypted Wrapper Token Balance for the selected currency
   const { data: encryptedBalance, refetch: refetchBalance } = useReadContract({
-    address: WRAPPER_USDC_ADDRESS,
+    address: activeAddress,
     abi: WRAPPER_ABI,
     functionName: "getEncryptedBalance",
     args: connectedAddress ? [connectedAddress as `0x${string}`] : undefined,
@@ -148,7 +160,9 @@ function WithdrawCard({
         .withPermit()
         .execute();
         
-      setDecryptedBalance(Number(result) / 1e6); // Format from 6 decimals
+      // Dynamic decimal formatting based on token type
+      const decimals = currency === "USDC" ? 1e6 : 1e18;
+      setDecryptedBalance(Number(result) / decimals); 
       setShowBalance(true);
     } catch (err) {
       console.error("Decryption failed:", err);
@@ -161,13 +175,19 @@ function WithdrawCard({
     if (!unwrapAmount) return;
     try {
       setStatus("pending");
+      
+      // Dynamic conversion back to BigInt standard depending on the asset
+      const decimals = currency === "USDC" ? 1e6 : 1e18;
+      const amountToUnwrap = BigInt(Math.floor(Number(unwrapAmount) * decimals));
+
       const hash = await writeContractAsync({
-        address: WRAPPER_USDC_ADDRESS,
+        address: activeAddress,
         abi: WRAPPER_ABI,
         functionName: "unwrap",
-        args: [BigInt(Number(unwrapAmount) * 1e6)],
+        args: [amountToUnwrap],
         gas: BigInt(8000000)
       });
+      
       setTxHash(hash);
       setStatus("success");
       setUnwrapAmount("");
@@ -190,13 +210,31 @@ function WithdrawCard({
 
   return (
     <div className="glass-green rounded-2xl p-6">
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(0,255,157,0.1)" }}>
-          <Wallet size={17} className="text-emerald-400" />
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(0,255,157,0.1)" }}>
+            <Wallet size={17} className="text-emerald-400" />
+          </div>
+          <div>
+            <h3 className="font-bold text-white text-base" style={{ fontFamily: "var(--font-display)" }}>My Salary Wallet</h3>
+            <p className="text-xs text-slate-500">Manage your private funds</p>
+          </div>
         </div>
-        <div>
-          <h3 className="font-bold text-white text-base" style={{ fontFamily: "var(--font-display)" }}>My Salary Wallet</h3>
-          <p className="text-xs text-slate-500">Manage your private funds</p>
+
+        {/* Currency Toggle */}
+        <div className="flex bg-slate-800/50 rounded-lg p-1 border border-slate-700/50">
+          <button 
+            onClick={() => setCurrency("USDC")}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${currency === "USDC" ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400 hover:text-slate-300"}`}
+          >
+            USDC
+          </button>
+          <button 
+            onClick={() => setCurrency("ETH")}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${currency === "ETH" ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400 hover:text-slate-300"}`}
+          >
+            ETH
+          </button>
         </div>
       </div>
 
@@ -204,7 +242,7 @@ function WithdrawCard({
       <div className="rounded-xl p-4 mb-4 flex items-center justify-between" style={{ background: "rgba(0,255,157,0.04)", border: "1px solid rgba(0,255,157,0.1)" }}>
         <div className="w-full">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">FHE Encrypted Balance</span>
+            <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">FHE Encrypted Balance ({currency})</span>
             {isRegistered && (
               <button onClick={handleRevealBalance} disabled={isDecrypting || !encryptedBalance} className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50">
                 {isDecrypting ? (
@@ -221,8 +259,11 @@ function WithdrawCard({
           <AnimatePresence mode="wait">
             {showBalance && decryptedBalance !== null ? (
               <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>${decryptedBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                <span className="text-sm text-slate-500">FHE-USDC</span>
+                <span className="text-3xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>
+                  {currency === "USDC" ? "$" : "Ξ"}
+                  {decryptedBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: currency === "ETH" ? 4 : 2 })}
+                </span>
+                <span className="text-sm text-slate-500">FHE-{currency}</span>
               </motion.div>
             ) : (
               <motion.div key="hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-3xl font-bold text-emerald-400 tracking-widest" style={{ fontFamily: "var(--font-display)", marginTop: "-4px" }}>
@@ -235,7 +276,7 @@ function WithdrawCard({
 
       <div className="flex items-center gap-2 text-xs text-slate-500 mb-5 bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
         <Clock size={16} className="text-emerald-500 shrink-0" /> 
-        <span>Your salary has been pushed directly to your wallet as encrypted tokens. <strong>Unwrap them below</strong> to convert them back into public Base Sepolia USDC.</span>
+        <span>Your salary has been pushed directly to your wallet as encrypted tokens. <strong>Unwrap them below</strong> to convert them back into public Base Sepolia {currency}.</span>
       </div>
 
       <AnimatePresence>
@@ -254,11 +295,11 @@ function WithdrawCard({
       <div className="space-y-3">
         {/* Unwrap to Public Wallet */}
         <div className="pt-2">
-          <label className="block text-xs font-medium text-slate-400 mb-2">Unwrap to Public Base Sepolia USDC</label>
+          <label className="block text-xs font-medium text-slate-400 mb-2">Unwrap to Public Base Sepolia {currency}</label>
           <div className="flex gap-2">
             <input 
               type="number" 
-              placeholder="Amount to Unwrap" 
+              placeholder={`Amount to Unwrap`} 
               className="input-field flex-1"
               value={unwrapAmount}
               onChange={(e) => setUnwrapAmount(e.target.value)}
@@ -337,7 +378,6 @@ function ActiveOrganizationDashboard({
         </div>
 
         <div className="lg:col-span-2">
-          {/* We remove contractAddress since we only interact with the Wrapper token contract now */}
           <WithdrawCard connectedAddress={connectedAddress} isRegistered={isRegistered} />
         </div>
       </div>
