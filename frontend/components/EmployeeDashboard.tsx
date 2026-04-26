@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   useReadContract,
@@ -15,7 +15,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  ArrowDownToLine,
   BadgeCheck,
   Clock,
   Eye,
@@ -85,14 +84,12 @@ function EmployeeRow({
 }
 
 // ──────────────────────────────────────────────
-// Withdraw card (Updated with Unwrap mechanics)
+// Withdraw card (Strictly View & Unwrap Flow)
 // ──────────────────────────────────────────────
 function WithdrawCard({
-  contractAddress,
   connectedAddress,
   isRegistered,
 }: {
-  contractAddress: `0x${string}`;
   connectedAddress?: string;
   isRegistered: boolean;
 }) {
@@ -107,8 +104,8 @@ function WithdrawCard({
   const { writeContractAsync } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
 
-  // Read the user's Encrypted Wrapper Token Balance (not just the payroll struct)
-  const { data: encryptedBalance } = useReadContract({
+  // Read the user's Encrypted Wrapper Token Balance
+  const { data: encryptedBalance, refetch: refetchBalance } = useReadContract({
     address: WRAPPER_USDC_ADDRESS,
     abi: WRAPPER_ABI,
     functionName: "getEncryptedBalance",
@@ -151,7 +148,7 @@ function WithdrawCard({
         .withPermit()
         .execute();
         
-      setDecryptedBalance(Number(result));
+      setDecryptedBalance(Number(result) / 1e6); // Format from 6 decimals
       setShowBalance(true);
     } catch (err) {
       console.error("Decryption failed:", err);
@@ -159,25 +156,6 @@ function WithdrawCard({
       setIsDecrypting(false);
     }
   };
-
-  const handleWithdraw = useCallback(async () => {
-    try {
-      setStatus("pending");
-      const hash = await writeContractAsync({
-        address: contractAddress,
-        abi: PAYROLL_ABI,
-        functionName: "withdrawSalary",
-        args: [],
-      });
-      setTxHash(hash);
-      setStatus("success");
-      setTimeout(() => setStatus("idle"), 5000);
-    } catch (err: unknown) {
-      setStatus("error");
-      console.error(err);
-      setTimeout(() => setStatus("idle"), 4000);
-    }
-  }, [writeContractAsync, contractAddress]);
 
   const handleUnwrap = async () => {
     if (!unwrapAmount) return;
@@ -192,7 +170,14 @@ function WithdrawCard({
       setTxHash(hash);
       setStatus("success");
       setUnwrapAmount("");
-      setTimeout(() => setStatus("idle"), 5000);
+      
+      // Hide balance and refetch encrypted state after unwrap
+      setShowBalance(false);
+      setDecryptedBalance(null);
+      setTimeout(() => {
+        setStatus("idle");
+        refetchBalance();
+      }, 5000);
     } catch (err) {
       setStatus("error");
       console.error(err);
@@ -235,7 +220,7 @@ function WithdrawCard({
           <AnimatePresence mode="wait">
             {showBalance && decryptedBalance !== null ? (
               <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>${decryptedBalance.toLocaleString()}</span>
+                <span className="text-3xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>${decryptedBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 <span className="text-sm text-slate-500">FHE-USDC</span>
               </motion.div>
             ) : (
@@ -247,14 +232,15 @@ function WithdrawCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-slate-500 mb-5">
-        <Clock size={12} /> Funds arrive encrypted. Unwrap to send to external wallets.
+      <div className="flex items-center gap-2 text-xs text-slate-500 mb-5 bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+        <Clock size={16} className="text-emerald-500 shrink-0" /> 
+        <span>Your salary has been pushed directly to your wallet as encrypted tokens. <strong>Unwrap them below</strong> to convert them back into public Base Sepolia USDC.</span>
       </div>
 
       <AnimatePresence>
         {status === "success" && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5 mb-3">
-            <CheckCircle2 size={14} /> Transaction successful!
+            <CheckCircle2 size={14} /> Unwrap successful! Check your public wallet.
           </motion.div>
         )}
         {status === "error" && (
@@ -265,17 +251,8 @@ function WithdrawCard({
       </AnimatePresence>
 
       <div className="space-y-3">
-        {/* Sign Contract Withdrawal */}
-        <button onClick={handleWithdraw} disabled={isLoading || !isRegistered} className="btn-primary w-full bg-slate-800 hover:bg-slate-700 text-white">
-          {isLoading && status !== "success" ? (
-            <><Loader2 size={16} className="animate-spin" /> Confirming...</>
-          ) : (
-            <><ArrowDownToLine size={16} /> Mark Salary Claimed</>
-          )}
-        </button>
-
         {/* Unwrap to Public Wallet */}
-        <div className="pt-4 mt-2 border-t border-emerald-500/20">
+        <div className="pt-2">
           <label className="block text-xs font-medium text-slate-400 mb-2">Unwrap to Public Base Sepolia USDC</label>
           <div className="flex gap-2">
             <input 
@@ -359,7 +336,8 @@ function ActiveOrganizationDashboard({
         </div>
 
         <div className="lg:col-span-2">
-          <WithdrawCard contractAddress={contractAddress} connectedAddress={connectedAddress} isRegistered={isRegistered} />
+          {/* We remove contractAddress since we only interact with the Wrapper token contract now */}
+          <WithdrawCard connectedAddress={connectedAddress} isRegistered={isRegistered} />
         </div>
       </div>
     </motion.div>
@@ -379,7 +357,6 @@ export default function EmployeeDashboard() {
   const [isSearching, setIsSearching] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Auto-load saved organizations from LocalStorage when wallet connects
   useEffect(() => {
     if (connectedAddress) {
       const saved = localStorage.getItem(`confidro_orgs_${connectedAddress}`);
@@ -391,7 +368,7 @@ export default function EmployeeDashboard() {
 
   const saveOrg = (org: `0x${string}`) => {
     if (!connectedAddress) return;
-    const newOrgs = [...new Set([...joinedOrgs, org])]; // prevent duplicates
+    const newOrgs = [...new Set([...joinedOrgs, org])];
     setJoinedOrgs(newOrgs);
     localStorage.setItem(`confidro_orgs_${connectedAddress}`, JSON.stringify(newOrgs));
   };
@@ -408,7 +385,6 @@ export default function EmployeeDashboard() {
     try {
       setIsSearching(true);
       
-      // On-chain verification: Are they an employee?
       const employeeList = await publicClient?.readContract({
         address: inputAddress as `0x${string}`,
         abi: PAYROLL_ABI,
@@ -420,7 +396,7 @@ export default function EmployeeDashboard() {
       if (isEmployee) {
         saveOrg(inputAddress as `0x${string}`);
         setActiveOrg(inputAddress as `0x${string}`);
-        setInputAddress(""); // clear input
+        setInputAddress(""); 
       } else {
         setErrorMsg("Access Denied: You are not registered as an employee in this organization.");
       }
@@ -432,12 +408,10 @@ export default function EmployeeDashboard() {
     }
   };
 
-  // If an organization is selected, show the actual dashboard
   if (activeOrg) {
     return <ActiveOrganizationDashboard contractAddress={activeOrg} onBack={() => setActiveOrg(null)} />;
   }
 
-  // Otherwise, show the Organization Selector
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-xl mx-auto">
       <div className="glass rounded-2xl p-8 mb-6">
@@ -451,7 +425,6 @@ export default function EmployeeDashboard() {
           </div>
         </div>
 
-        {/* List of auto-appearing saved organizations */}
         {joinedOrgs.length > 0 ? (
           <div className="space-y-3 mb-8">
             {joinedOrgs.map((org) => (
@@ -476,7 +449,6 @@ export default function EmployeeDashboard() {
 
         <hr className="border-slate-800 mb-6" />
 
-        {/* Input Form for new organization */}
         <form onSubmit={handleConnectOrg}>
           <label className="block text-sm font-medium text-slate-300 mb-2">
             Join New Organization

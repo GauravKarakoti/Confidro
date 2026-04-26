@@ -598,7 +598,7 @@ export const ESCROW_ABI = [
       ],
       "name": "depositTokens",
       "outputs": [],
-      "stateMutability": "nonpayable",
+      "stateMutability": "payable",
       "type": "function"
     },
     {
@@ -655,7 +655,7 @@ export const ESCROW_ABI = [
       "name": "tokenETH",
       "outputs": [
         {
-          "internalType": "contract IFHERC20",
+          "internalType": "contract IFHERC20Wrapper",
           "name": "",
           "type": "address"
         }
@@ -668,7 +668,7 @@ export const ESCROW_ABI = [
       "name": "tokenUSDC",
       "outputs": [
         {
-          "internalType": "contract IFHERC20",
+          "internalType": "contract IFHERC20Wrapper",
           "name": "",
           "type": "address"
         }
