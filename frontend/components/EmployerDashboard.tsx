@@ -860,8 +860,9 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
             client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute()
         ]);
           
-        setDecryptedETH(Number(resETH));
-        setDecryptedUSDC(Number(resUSDC));
+        // FIX: Format the base units back to human-readable numbers using viem's formatUnits
+        setDecryptedETH(Number(formatUnits(resETH, 18)));
+        setDecryptedUSDC(Number(formatUnits(resUSDC, 6)));
         setShowTotal(true);
       }
     } catch (err) {
@@ -881,7 +882,6 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         args: [],
         gas: BigInt(8000000)
       });
-      useWaitForTransactionReceipt({ hash: hash });
       setProcessTxHash(hash);
       setProcessStatus("success");
       setTimeout(() => setProcessStatus("idle"), 5000);
