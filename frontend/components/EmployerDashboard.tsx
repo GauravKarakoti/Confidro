@@ -65,22 +65,22 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
     });
   };
 
-  // UPDATED: Now passes the FHERC20 Wrappers to the Escrow
   const handleDeployEscrow = async () => {
     try {
       const hash = await writeContractAsync({
-        address: FACTORY_CONTRACT_ADDRESS,
-        abi: FACTORY_ABI,
-        functionName: "createEscrow",
+        address: contractAddress, // Call the Payroll contract directly, NOT the Factory
+        abi: PAYROLL_ABI,
+        functionName: "deployAndSetEscrow",
         args: [
-          contractAddress, 
           WRAPPER_ETH_ADDRESS,   // Passing the FHE Wrapper
           WRAPPER_USDC_ADDRESS   // Passing the FHE Wrapper
         ],
       });
       console.log("Deploy tx:", hash);
-      alert("Escrow deploying!");
-    } catch (e) { console.error(e); }
+      alert("Escrow deployed and linked successfully!");
+    } catch (e) { 
+      console.error(e); 
+    }
   };
 
   // UPDATED: Standardized approval and deposit

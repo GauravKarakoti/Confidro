@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@fhenixprotocol/cofhe-contracts/FHE.sol";
+import "./ConfidroEscrow.sol";
 
 interface IPrivaraEscrow {
     function distribute(address[] memory employees, euint64[] memory amounts, uint8[] memory currencies) external;
@@ -42,6 +43,18 @@ contract ConfidroPayroll {
         
         FHE.allowThis(totalPayrollUSDC);
         FHE.allow(totalPayrollUSDC, owner);
+    }
+
+    function deployAndSetEscrow(address tokenETH, address tokenUSDC) external onlyOwner {
+        require(privaraEscrow == address(0), "Escrow already deployed");
+        
+        // Deploy the escrow directly from the payroll contract
+        ConfidroEscrow newEscrow = new ConfidroEscrow(owner, address(this), tokenETH, tokenUSDC);
+        
+        // Set the state variable
+        privaraEscrow = address(newEscrow);
+        
+        emit PrivaraEscrowSet(address(newEscrow));
     }
 
     function setPrivaraEscrow(address _escrow) external onlyOwner {

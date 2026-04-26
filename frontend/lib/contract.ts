@@ -319,6 +319,24 @@ export const PAYROLL_ABI = [
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "tokenETH",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "tokenUSDC",
+          "type": "address"
+        }
+      ],
+      "name": "deployAndSetEscrow",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "uint256",
           "name": "",
           "type": "uint256"
