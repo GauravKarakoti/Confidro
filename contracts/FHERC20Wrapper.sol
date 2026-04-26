@@ -78,7 +78,11 @@ contract FHERC20Wrapper {
     }
 
     function _transfer(address from, address to, euint64 amount) internal {
-        // FIX: Replaced FHE.req(FHE.lte(...)) with select pattern
+        // FIX: Ensure 'from' balance is initialized before passing to FHE.lte to prevent panic
+        if (!FHE.isInitialized(_balances[from])) {
+            _balances[from] = FHE.asEuint64(0);
+        }
+
         ebool hasBalance = FHE.lte(amount, _balances[from]);
         euint64 amountToMove = FHE.select(hasBalance, amount, FHE.asEuint64(0));
 
