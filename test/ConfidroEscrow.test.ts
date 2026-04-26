@@ -18,18 +18,19 @@ describe("ConfidroEscrow", function () {
   beforeEach(async function () {
     [owner, payrollContract, employer, employee1, employee2] = await ethers.getSigners();
 
-    // 1. Deploy Mocks
+    // 1. Deploy Standard Mocks
     const MockERC20 = await ethers.getContractFactory("MockERC20");
     usdcMock = await MockERC20.deploy();
     
     const MockWETH = await ethers.getContractFactory("MockWETH");
     wethMock = await MockWETH.deploy();
 
-    const MockFHERC20Wrapper = await ethers.getContractFactory("MockFHERC20Wrapper");
-    wrapperEthMock = await MockFHERC20Wrapper.deploy(await wethMock.getAddress());
-    wrapperUsdcMock = await MockFHERC20Wrapper.deploy(await usdcMock.getAddress());
+    // 2. Deploy ACTUAL FHERC20Wrapper (No longer using MockFHERC20Wrapper)
+    const FHERC20Wrapper = await ethers.getContractFactory("FHERC20Wrapper");
+    wrapperEthMock = await FHERC20Wrapper.deploy(await wethMock.getAddress(), 18);
+    wrapperUsdcMock = await FHERC20Wrapper.deploy(await usdcMock.getAddress(), 6);
 
-    // 2. Deploy Escrow
+    // 3. Deploy Escrow
     const ConfidroEscrow = await ethers.getContractFactory("ConfidroEscrow");
     escrow = await ConfidroEscrow.deploy(
       await owner.getAddress(),
@@ -38,7 +39,6 @@ describe("ConfidroEscrow", function () {
       await wrapperUsdcMock.getAddress()
     );
 
-    // 3. Setup initial employer funds
     await usdcMock.mint(await employer.getAddress(), ethers.parseUnits("10000", 6));
   });
 
@@ -52,8 +52,9 @@ describe("ConfidroEscrow", function () {
   });
 
   describe("Deposit Tokens", function () {
-    it("Should deposit and wrap native ETH successfully", async function () {
-      const depositAmount = ethers.parseEther("5");
+    it("Should deposit and wrap native ETH successfully for 0.0001 ETH", async function () {
+      // Testing exactly 0.0001 ETH
+      const depositAmount = ethers.parseEther("0.0001");
 
       await expect(
         escrow.connect(employer).depositTokens(depositAmount, 0, { value: depositAmount })
@@ -68,16 +69,17 @@ describe("ConfidroEscrow", function () {
     });
 
     it("Should revert ETH deposit if msg.value mismatches amount", async function () {
-      const depositAmount = ethers.parseEther("5");
-      const wrongValue = ethers.parseEther("4");
+      const depositAmount = ethers.parseEther("0.0001");
+      const wrongValue = ethers.parseEther("0.00005"); // Sending less than specified amount
 
       await expect(
         escrow.connect(employer).depositTokens(depositAmount, 0, { value: wrongValue })
       ).to.be.revertedWith("Incorrect ETH value sent");
     });
 
-    it("Should deposit and wrap USDC successfully", async function () {
-      const depositAmount = ethers.parseUnits("1000", 6);
+    it("Should deposit and wrap USDC successfully for 1 USDC", async function () {
+      // Testing exactly 1 USDC (USDC has 6 decimals)
+      const depositAmount = ethers.parseUnits("1", 6);
 
       // Employer must approve escrow to pull standard USDC
       await usdcMock.connect(employer).approve(await escrow.getAddress(), depositAmount);
@@ -93,10 +95,10 @@ describe("ConfidroEscrow", function () {
     });
 
     it("Should revert USDC deposit if native ETH is accidentally sent", async function () {
-      const depositAmount = ethers.parseUnits("1000", 6);
+      const depositAmount = ethers.parseUnits("1", 6);
 
       await expect(
-        escrow.connect(employer).depositTokens(depositAmount, 1, { value: ethers.parseEther("1") })
+        escrow.connect(employer).depositTokens(depositAmount, 1, { value: ethers.parseEther("0.0001") })
       ).to.be.revertedWith("Native ETH sent with USDC deposit");
     });
   });

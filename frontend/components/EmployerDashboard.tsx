@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { ESCROW_ABI, PAYROLL_ABI, WRAPPER_ETH_ADDRESS, WRAPPER_USDC_ADDRESS, WRAPPER_ABI } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
-import { erc20Abi } from "viem";
+import { erc20Abi, parseUnits } from "viem";
 
 interface EmployerDashboardProps {
   contractAddress: `0x${string}`;
@@ -48,7 +48,7 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   const [depositAmount, setDepositAmount] = useState("");
   const [depositToken, setDepositToken] = useState<"0" | "1">("0");
   const { writeContractAsync } = useWriteContract();
-  const publicClient = usePublicClient(); // Added to fetch underlying USDC address
+  const publicClient = usePublicClient();
 
   const { data: currentEscrow } = useReadContract({
     address: contractAddress,
@@ -59,12 +59,14 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   const hasEscrow = currentEscrow && currentEscrow !== "0x0000000000000000000000000000000000000000";
 
   const handleAddCompliance = async () => {
+    if (!officer) return;
     await writeContractAsync({
       address: contractAddress,
       abi: PAYROLL_ABI,
       functionName: "addCompliance",
       args: [officer as `0x${string}`],
     });
+    setOfficer("");
   };
 
   const handleDeployEscrow = async () => {
@@ -86,12 +88,13 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   };
 
   const handleDepositTokens = async () => {
-    if (!hasEscrow) return;
+    if (!hasEscrow || !depositAmount) return;
     try {
       const isETH = depositToken === "0";
       const decimals = isETH ? 18 : 6;
       
-      const amountParsed = BigInt(Math.floor(Number(depositAmount) * Math.pow(10, decimals)));
+      // Standardize to parseUnits to avoid JS float precision errors when processing fractional amounts like 0.0001
+      const amountParsed = parseUnits(depositAmount, decimals);
 
       if (isETH) {
         // Step 1: Deposit Native ETH (no approval required)
@@ -101,7 +104,7 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
           functionName: "depositTokens",
           args: [amountParsed, 0],
           value: amountParsed, 
-          gas: BigInt(8000000), // <-- ADD THIS: Bypass FHE gas estimation failure
+          gas: BigInt(8000000), // Bypass FHE gas estimation failure
         });
       } else {
         if (!publicClient) throw new Error("Public client not found");
@@ -127,7 +130,7 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
           abi: ESCROW_ABI,
           functionName: "depositTokens",
           args: [amountParsed, 1],
-          gas: BigInt(8000000), // <-- ADD THIS: Bypass FHE gas estimation failure
+          gas: BigInt(8000000), 
         });
       }
       setDepositAmount("");
@@ -276,10 +279,12 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
         await client.connect(publicClient, walletClient);
         
         const decimals = currency === "0" ? 18 : 6; // ETH (18) vs USDC (6)
-        const salaryInBaseUnits = Math.floor(Number(salary) * Math.pow(10, decimals));
+        
+        // Utilize viem's parseUnits to robustly translate strings/floats
+        const salaryInBaseUnits = parseUnits(salary, decimals);
 
         const encryptedInputs = await client.encryptInputs([
-          Encryptable.uint64(BigInt(salaryInBaseUnits)) 
+          Encryptable.uint64(salaryInBaseUnits) 
         ]).execute();
 
         const encryptedResult = encryptedInputs[0];
@@ -295,7 +300,7 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
 
         const hash = await writeContractAsync({
           address: contractAddress, 
-          abi: PAYROLL_ABI,         
+          abi: PAYROLL_ABI,        
           functionName: "addEmployee",
           args: [address as `0x${string}`, encryptedSalaryInput, parseInt(currency)],
         });
@@ -371,6 +376,7 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
                 className="input-field pl-8"
                 disabled={isLoading}
                 required
+                step="any"
               />
             </div>
           </div>
@@ -458,7 +464,6 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
       const { FheTypes } = cofheCore;
 
       if (encryptedTotals && Array.isArray(encryptedTotals)) {
-        // FIX: Convert hex strings (0x...) to BigInt handles
         const handles = encryptedTotals.map(h => BigInt(h));
         const [encETH, encUSDC] = handles;
         
@@ -470,7 +475,6 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         await client.connect(publicClient, walletClient);
         const permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
 
-        // Execute decryption
         const [resETH, resUSDC] = await Promise.all([
             client.decryptForView(encETH, FheTypes.Uint64).withPermit(permit).execute(),
             client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute()
@@ -492,7 +496,7 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
       setProcessStatus("pending");
       const hash = await writeContractAsync({
         address: contractAddress, 
-        abi: PAYROLL_ABI,         
+        abi: PAYROLL_ABI,        
         functionName: "processPayroll",
         args: [],
       });
@@ -582,7 +586,7 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
 export default function EmployerDashboard({ contractAddress }: EmployerDashboardProps) {
   const { data: employees } = useReadContract({
     address: contractAddress, 
-    abi: PAYROLL_ABI,         
+    abi: PAYROLL_ABI,        
     functionName: "getEmployees",
   });
 

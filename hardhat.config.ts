@@ -22,8 +22,8 @@ const config: HardhatUserConfig = {
       },
     },
   },
-  defaultNetwork: "hardhat",
-  // defaultNetwork: 'localcofhe',
+  // defaultNetwork: "hardhat",
+  defaultNetwork: 'localcofhe',
   networks: {
     // Base Sepolia testnet configuration (not provided by plugin)
     "base-sepolia": {
