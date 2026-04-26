@@ -227,18 +227,20 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
       const decimals = isETH ? 18 : 6;
       const amountParsed = parseUnits(withdrawAmount, decimals);
 
-      // Requires `withdrawTokens` function in ConfidroEscrow contract and ESCROW_ABI
       await writeContractAsync({
         address: currentEscrow as `0x${string}`,
         abi: ESCROW_ABI,
         functionName: "withdrawTokens",
-        args: [amountParsed, parseInt(withdrawToken)],
+        // Using Number() or a ternary is slightly safer/cleaner in TS than parseInt for specific literal types
+        args: [amountParsed, withdrawToken === "0" ? 0 : 1],
+        gas: BigInt(8000000), // 🚨 FIX: Added gas bypass for FHE wrapper transfer execution
       });
+      
       setWithdrawAmount("");
       alert("Withdrawal successful!");
     } catch (e) {
       console.error(e);
-      alert("Transaction failed. Make sure withdrawTokens is implemented in your Smart Contract and ABI.");
+      alert("Transaction failed. Check console for details.");
     }
   };
 
@@ -662,6 +664,7 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         abi: PAYROLL_ABI,        
         functionName: "processPayroll",
         args: [],
+        gas: BigInt(8000000)
       });
       setProcessTxHash(hash);
       setProcessStatus("success");

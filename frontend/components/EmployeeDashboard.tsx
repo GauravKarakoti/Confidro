@@ -165,7 +165,8 @@ function WithdrawCard({
         address: WRAPPER_USDC_ADDRESS,
         abi: WRAPPER_ABI,
         functionName: "unwrap",
-        args: [BigInt(Number(unwrapAmount) * 1e6)], // USDC has 6 decimals
+        args: [BigInt(Number(unwrapAmount) * 1e6)],
+        gas: BigInt(8000000)
       });
       setTxHash(hash);
       setStatus("success");
