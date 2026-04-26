@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { ESCROW_ABI, PAYROLL_ABI, WRAPPER_ETH_ADDRESS, WRAPPER_USDC_ADDRESS, WRAPPER_ABI } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
-import { erc20Abi, parseUnits } from "viem";
+import { erc20Abi, formatUnits, parseUnits } from "viem";
 
 interface EmployerDashboardProps {
   contractAddress: `0x${string}`;
@@ -45,10 +45,25 @@ type TxStatus = "idle" | "encrypting" | "pending" | "success" | "error";
 
 function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` }) {
   const [officer, setOfficer] = useState("");
+  
+  // Deposit States
   const [depositAmount, setDepositAmount] = useState("");
   const [depositToken, setDepositToken] = useState<"0" | "1">("0");
+  
+  // Withdraw States
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawToken, setWithdrawToken] = useState<"0" | "1">("0");
+  
+  // Reveal Budget States
+  const [showBudget, setShowBudget] = useState(false);
+  const [budgetETH, setBudgetETH] = useState<string | null>(null);
+  const [budgetUSDC, setBudgetUSDC] = useState<string | null>(null);
+  const [isDecryptingBudget, setIsDecryptingBudget] = useState(false);
+
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  const { address: userAddress, chainId } = useAccount();
 
   const { data: currentEscrow } = useReadContract({
     address: contractAddress,
@@ -146,6 +161,87 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
     }
   };
 
+  const handleRevealBudget = async () => {
+    if (showBudget) {
+      setShowBudget(false);
+      setBudgetETH(null);
+      setBudgetUSDC(null);
+      return;
+    }
+
+    try {
+      setIsDecryptingBudget(true);
+      if (!publicClient || !walletClient || !userAddress || !chainId) {
+        throw new Error("Please connect your wallet first.");
+      }
+
+      // 1. Read encrypted balances from the wrapper contracts for the Escrow address
+      const encETH = await publicClient.readContract({
+        address: WRAPPER_ETH_ADDRESS,
+        abi: WRAPPER_ABI,
+        functionName: "getEncryptedBalance",
+        args: [currentEscrow as `0x${string}`],
+      });
+
+      const encUSDC = await publicClient.readContract({
+        address: WRAPPER_USDC_ADDRESS,
+        abi: WRAPPER_ABI,
+        functionName: "getEncryptedBalance",
+        args: [currentEscrow as `0x${string}`],
+      });
+
+      const cofheWeb = await import("@cofhe/sdk/web");
+      const cofheCore = await import("@cofhe/sdk");
+      
+      const { createCofheConfig, createCofheClient } = cofheWeb;
+      const { FheTypes } = cofheCore;
+
+      const config = createCofheConfig({ environment: "web", supportedChains: [baseSepolia] });
+      const client = await createCofheClient(config);
+      await client.connect(publicClient, walletClient);
+      
+      // Permit handles authorization to decrypt FHE types
+      const permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+
+      // 2. Decrypt the balances
+      const [resETH, resUSDC] = await Promise.all([
+          client.decryptForView(BigInt(encETH as string), FheTypes.Uint64).withPermit(permit).execute(),
+          client.decryptForView(BigInt(encUSDC as string), FheTypes.Uint64).withPermit(permit).execute()
+      ]);
+        
+      // 3. Format back to standard decimal representations
+      setBudgetETH(formatUnits(resETH, 18));
+      setBudgetUSDC(formatUnits(resUSDC, 6));
+      setShowBudget(true);
+    } catch (err) {
+      console.error("Decryption failed:", err);
+    } finally {
+      setIsDecryptingBudget(false);
+    }
+  };
+
+  const handleWithdrawTokens = async () => {
+    if (!hasEscrow || !withdrawAmount) return;
+    try {
+      const isETH = withdrawToken === "0";
+      const decimals = isETH ? 18 : 6;
+      const amountParsed = parseUnits(withdrawAmount, decimals);
+
+      // Requires `withdrawTokens` function in ConfidroEscrow contract and ESCROW_ABI
+      await writeContractAsync({
+        address: currentEscrow as `0x${string}`,
+        abi: ESCROW_ABI,
+        functionName: "withdrawTokens",
+        args: [amountParsed, parseInt(withdrawToken)],
+      });
+      setWithdrawAmount("");
+      alert("Withdrawal successful!");
+    } catch (e) {
+      console.error(e);
+      alert("Transaction failed. Make sure withdrawTokens is implemented in your Smart Contract and ABI.");
+    }
+  };
+
   return (
     <div className="glass rounded-2xl p-6 space-y-6 mt-6">
       <h3 className="font-bold text-white flex items-center gap-2">
@@ -163,9 +259,21 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
       </div>
 
       <div className="border-t border-white/10 pt-4 mt-4">
-        <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-          <Anchor size={14} className="text-emerald-400" /> Escrow Budget Wallet
-        </h4>
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+            <Anchor size={14} className="text-emerald-400" /> Escrow Budget Wallet
+          </h4>
+          
+          {hasEscrow && (
+            <button
+              onClick={handleRevealBudget}
+              disabled={isDecryptingBudget}
+              className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
+            >
+              {isDecryptingBudget ? <><Loader2 size={12} className="animate-spin" /> Decrypting...</> : showBudget ? <><EyeOff size={12} /> Hide Budget</> : <><Eye size={12} /> Reveal Budget</>}
+            </button>
+          )}
+        </div>
         
         {!hasEscrow ? (
           <div className="flex flex-col gap-3">
@@ -174,7 +282,36 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6">
+            
+            {/* Reveal Budget Section */}
+            <AnimatePresence mode="wait">
+              {showBudget && budgetETH !== null && budgetUSDC !== null ? (
+                <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex flex-col gap-2 bg-white/5 p-4 rounded-xl">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-blue-400" style={{ fontFamily: "var(--font-display)" }}>
+                      {parseFloat(budgetETH).toLocaleString()}
+                    </span>
+                    <span className="text-sm text-slate-500">ETH Available</span>
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>
+                      ${parseFloat(budgetUSDC).toLocaleString()}
+                    </span>
+                    <span className="text-sm text-slate-500">USDC Available</span>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div key="hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    {[...Array(8)].map((_, i) => <div key={i} className="w-5 h-5 rounded" style={{ background: "rgba(0,255,157,0.08)" }} />)}
+                  </div>
+                  <Lock size={12} className="text-slate-600" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Deposit Form */}
             <div className="flex gap-2">
               <select value={depositToken} onChange={(e) => setDepositToken(e.target.value as "0" | "1")} className="input-field max-w-24">
                 <option value="0">ETH</option>
@@ -189,8 +326,27 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
               />
               <button onClick={handleDepositTokens} className="btn-green">Deposit Budget</button>
             </div>
+
+            {/* Withdraw Form */}
+            <div className="flex gap-2 pt-2 border-t border-white/5">
+              <select value={withdrawToken} onChange={(e) => setWithdrawToken(e.target.value as "0" | "1")} className="input-field max-w-24 border-red-500/20">
+                <option value="0">ETH</option>
+                <option value="1">USDC</option>
+              </select>
+              <input 
+                 type="number" 
+                 placeholder="Amount to withdraw" 
+                 className="input-field flex-1 border-red-500/20 focus:border-red-500/50" 
+                 value={withdrawAmount} 
+                 onChange={(e) => setWithdrawAmount(e.target.value)} 
+              />
+              <button onClick={handleWithdrawTokens} className="btn-primary bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30">
+                Withdraw
+              </button>
+            </div>
+            
             <p className="text-xs text-slate-500">
-              *The escrow automatically handles FHE wrapping upon deposit.
+              *The escrow automatically handles FHE wrapping upon deposit. Withdrawals return FHE-wrapped assets to the owner.
             </p>
           </div>
         )}

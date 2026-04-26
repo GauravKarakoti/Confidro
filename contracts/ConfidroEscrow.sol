@@ -100,6 +100,17 @@ contract ConfidroEscrow {
         }
     }
 
+    function withdrawTokens(uint256 amount, uint8 currency) external onlyOwner {
+        require(amount > 0, "Amount must be greater than 0");
+        require(currency == 0 || currency == 1, "Invalid currency");
+
+        if (currency == 0) {
+            tokenETH.transfer(msg.sender, amount);
+        } else {
+            tokenUSDC.transfer(msg.sender, amount);
+        }
+    }
+
     // FHE Distribution: Called by ConfidroPayroll during processPayroll()
     function distribute(address[] memory employees, euint64[] memory amounts, uint8[] memory currencies) external onlyPayroll {
         require(employees.length == amounts.length && amounts.length == currencies.length, "Mismatched arrays");

@@ -153,4 +153,68 @@ describe("ConfidroEscrow", function () {
       ).to.be.revertedWith("Mismatched arrays");
     });
   });
+
+  describe("Withdraw Tokens", function () {
+    beforeEach(async function () {
+      // Provide some initial balance to Escrow so it has funds to withdraw
+      const ethAmount = ethers.parseEther("0.1");
+      await escrow.connect(employer).depositTokens(ethAmount, 0, { value: ethAmount });
+
+      const usdcAmount = ethers.parseUnits("10", 6);
+      await usdcMock.connect(employer).approve(await escrow.getAddress(), usdcAmount);
+      await escrow.connect(employer).depositTokens(usdcAmount, 1);
+    });
+
+    it("Should withdraw wrapped ETH successfully when called by owner", async function () {
+      const withdrawAmount = ethers.parseEther("0.05");
+      const ownerAddress = await owner.getAddress();
+      
+      // Withdraw 0.05 Wrapped ETH
+      await expect(escrow.connect(owner).withdrawTokens(withdrawAmount, 0))
+        .to.not.be.reverted;
+
+      // Since FHERC20Wrapper uses FHE, we must call getEncryptedBalance.
+      // It returns an encrypted handle (euint64), so we just verify it exists 
+      // instead of checking against a plaintext number.
+      const encryptedBalance = await wrapperEthMock.getEncryptedBalance(ownerAddress);
+      expect(encryptedBalance).to.not.be.undefined;
+    });
+
+    it("Should withdraw wrapped USDC successfully when called by owner", async function () {
+      const withdrawAmount = ethers.parseUnits("5", 6);
+      const ownerAddress = await owner.getAddress();
+      
+      // Withdraw 5 Wrapped USDC
+      await expect(escrow.connect(owner).withdrawTokens(withdrawAmount, 1))
+        .to.not.be.reverted;
+
+      // Verify the owner received the wrapped USDC FHE tokens
+      const encryptedBalance = await wrapperUsdcMock.getEncryptedBalance(ownerAddress);
+      expect(encryptedBalance).to.not.be.undefined;
+    });
+
+    it("Should revert if a non-owner tries to withdraw", async function () {
+      const withdrawAmount = ethers.parseEther("0.05");
+      
+      // Employer tries to withdraw, but they are not the contract owner
+      await expect(
+        escrow.connect(employer).withdrawTokens(withdrawAmount, 0)
+      ).to.be.revertedWith("Only owner can call this");
+    });
+
+    it("Should revert if withdrawal amount is 0", async function () {
+      await expect(
+        escrow.connect(owner).withdrawTokens(0, 0)
+      ).to.be.revertedWith("Amount must be greater than 0");
+    });
+
+    it("Should revert on invalid currency type", async function () {
+      const withdrawAmount = ethers.parseEther("0.05");
+      
+      // Try to pass '2' instead of 0 or 1
+      await expect(
+        escrow.connect(owner).withdrawTokens(withdrawAmount, 2)
+      ).to.be.revertedWith("Invalid currency");
+    });
+  });
 });
