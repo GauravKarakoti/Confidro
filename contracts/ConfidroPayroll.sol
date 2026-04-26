@@ -6,6 +6,8 @@ import "./ConfidroEscrow.sol";
 
 interface IPrivaraEscrow {
     function distribute(address[] memory employees, euint64[] memory amounts, uint8[] memory currencies) external;
+    function tokenETH() external view returns (address);
+    function tokenUSDC() external view returns (address);
 }
 
 contract ConfidroPayroll {
@@ -108,11 +110,24 @@ contract ConfidroPayroll {
             euint64[] memory amounts = new euint64[](employeeList.length);
             uint8[] memory currencies = new uint8[](employeeList.length);
             
+            // Fetch token addresses from the escrow
+            address tETH = IPrivaraEscrow(privaraEscrow).tokenETH();
+            address tUSDC = IPrivaraEscrow(privaraEscrow).tokenUSDC();
+
             for (uint i = 0; i < employeeList.length; i++) {
                 address emp = employeeList[i];
                 euint64 empSalary = salaries[emp];
-                
+
+                // 1. Allow the Escrow contract
                 FHE.allow(empSalary, privaraEscrow);
+                
+                // 2. Allow the actual Token Wrapper contracts executing the transfer
+                if (paymentCurrency[emp] == 0) {
+                    FHE.allow(empSalary, tETH);
+                } else {
+                    FHE.allow(empSalary, tUSDC);
+                }
+
                 amounts[i] = empSalary;
                 currencies[i] = paymentCurrency[emp];
             }

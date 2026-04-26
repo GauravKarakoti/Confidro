@@ -49,7 +49,30 @@ describe("ConfidroPayroll", function () {
     expect(currency).to.equal(0);
   });
 
-  it("2. Should process payroll without error", async function () {
+  it("2. Should successfully process payroll and distribute through Escrow", async function () {
+    const fhe = await hre.cofhe.createClientWithBatteries();
+    const employee1Address = await employee1.getAddress();
+
+    // 1. Deploy token mocks to prevent execution reverts during .transfer()
+    const MockToken = await hre.ethers.getContractFactory("MockERC20");
+    const mockTokenETH = await MockToken.deploy();
+    const mockTokenUSDC = await MockToken.deploy();
+    await mockTokenETH.waitForDeployment();
+    await mockTokenUSDC.waitForDeployment();
+
+    // 2. Deploy and link the Escrow to the Payroll contract
+    await payroll.deployAndSetEscrow(
+      await mockTokenETH.getAddress(), 
+      await mockTokenUSDC.getAddress()
+    );
+
+    // 3. Add an employee with an encrypted salary
+    const [encryptedSalary] = await fhe.encryptInputs([Encryptable.uint64(5000n)]).execute();
+    await payroll.addEmployee(employee1Address, encryptedSalary, 0); // 0 = ETH
+
+    // 4. Process Payroll 
+    // This will now execute the inner block, hit the FHE.allow() statements, 
+    // call the Escrow, and successfully complete without reverting.
     await expect(payroll.processPayroll())
       .to.emit(payroll, "PayrollProcessed");
   });

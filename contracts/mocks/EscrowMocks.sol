@@ -25,13 +25,16 @@ contract MockERC20 {
         return true;
     }
 
-    // Added to support SafeERC20 transfers used in the real Wrapper
+    // Standard ERC20 transfer
     function transfer(address to, uint256 amount) external returns (bool) {
         require(balanceOf[msg.sender] >= amount, "Balance exceeded");
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
         return true;
     }
+
+    // 🚨 FIX: Add the FHE specific transfer signature expected by the Escrow
+    function transfer(address to, euint64 amount) external {}
 }
 
 contract MockWETH is MockERC20 {

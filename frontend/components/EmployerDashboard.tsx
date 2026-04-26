@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   useWriteContract,
@@ -24,7 +24,10 @@ import {
   Copy,
   Check,
   ShieldCheck,
-  Anchor
+  Anchor,
+  Wallet,
+  Unlock,
+  Clock
 } from "lucide-react";
 import { ESCROW_ABI, PAYROLL_ABI, WRAPPER_ETH_ADDRESS, WRAPPER_USDC_ADDRESS, WRAPPER_ABI } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
@@ -108,18 +111,16 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
       const isETH = depositToken === "0";
       const decimals = isETH ? 18 : 6;
       
-      // Standardize to parseUnits to avoid JS float precision errors when processing fractional amounts like 0.0001
       const amountParsed = parseUnits(depositAmount, decimals);
 
       if (isETH) {
-        // Step 1: Deposit Native ETH (no approval required)
         await writeContractAsync({
           address: currentEscrow as `0x${string}`,
           abi: ESCROW_ABI,
           functionName: "depositTokens",
           args: [amountParsed, 0],
           value: amountParsed, 
-          gas: BigInt(8000000), // Bypass FHE gas estimation failure
+          gas: BigInt(8000000), 
         });
       } else {
         if (!publicClient) throw new Error("Public client not found");
@@ -130,7 +131,6 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
           functionName: "underlying",
         });
 
-        // Step 2: Approve the Escrow to spend the underlying USDC
         const approveTxHash = await writeContractAsync({
           address: underlyingUSDC as `0x${string}`,
           abi: erc20Abi, 
@@ -138,14 +138,10 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
           args: [currentEscrow as `0x${string}`, amountParsed],
         });
 
-        // 🚨 CRITICAL FIX: Wait for the approval transaction to be mined
-        await publicClient.waitForTransactionReceipt({ 
-          hash: approveTxHash 
-        });
+        await publicClient.waitForTransactionReceipt({ hash: approveTxHash });
 
         alert("Approval successful! Now confirming deposit...");
 
-        // Step 3: Deposit into Escrow
         await writeContractAsync({
           address: currentEscrow as `0x${string}`,
           abi: ESCROW_ABI,
@@ -175,7 +171,6 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
         throw new Error("Please connect your wallet first.");
       }
 
-      // 1. Read encrypted balances from the wrapper contracts for the Escrow address
       const encETH = await publicClient.readContract({
         address: WRAPPER_ETH_ADDRESS,
         abi: WRAPPER_ABI,
@@ -200,16 +195,13 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
       const client = await createCofheClient(config);
       await client.connect(publicClient, walletClient);
       
-      // Permit handles authorization to decrypt FHE types
       const permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
 
-      // 2. Decrypt the balances
       const [resETH, resUSDC] = await Promise.all([
           client.decryptForView(BigInt(encETH as string), FheTypes.Uint64).withPermit(permit).execute(),
           client.decryptForView(BigInt(encUSDC as string), FheTypes.Uint64).withPermit(permit).execute()
       ]);
         
-      // 3. Format back to standard decimal representations
       setBudgetETH(formatUnits(resETH, 18));
       setBudgetUSDC(formatUnits(resUSDC, 6));
       setShowBudget(true);
@@ -231,9 +223,8 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
         address: currentEscrow as `0x${string}`,
         abi: ESCROW_ABI,
         functionName: "withdrawTokens",
-        // Using Number() or a ternary is slightly safer/cleaner in TS than parseInt for specific literal types
         args: [amountParsed, withdrawToken === "0" ? 0 : 1],
-        gas: BigInt(8000000), // 🚨 FIX: Added gas bypass for FHE wrapper transfer execution
+        gas: BigInt(8000000), 
       });
       
       setWithdrawAmount("");
@@ -245,7 +236,7 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   };
 
   return (
-    <div className="glass rounded-2xl p-6 space-y-6 mt-6">
+    <div className="glass rounded-2xl p-6 space-y-6 h-full flex flex-col">
       <h3 className="font-bold text-white flex items-center gap-2">
         <ShieldCheck className="text-violet-400" /> Admin & Escrow Management
       </h3>
@@ -260,7 +251,7 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
         <button onClick={handleAddCompliance} className="btn-primary">Add Role</button>
       </div>
 
-      <div className="border-t border-white/10 pt-4 mt-4">
+      <div className="border-t border-white/10 pt-4 mt-4 flex-1">
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
             <Anchor size={14} className="text-emerald-400" /> Escrow Budget Wallet
@@ -347,7 +338,7 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
               </button>
             </div>
             
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 mt-2">
               *The escrow automatically handles FHE wrapping upon deposit. Withdrawals return FHE-wrapped assets to the owner.
             </p>
           </div>
@@ -357,6 +348,228 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   );
 }
 
+// ──────────────────────────────────────────────
+// Unwrap wallet component for Employers (Modeled heavily after Employee's WithdrawCard)
+// ──────────────────────────────────────────────
+function EmployerUnwrapCard({ connectedAddress }: { connectedAddress?: string }) {
+  const [currency, setCurrency] = useState<"USDC" | "ETH">("USDC");
+  const activeAddress = currency === "USDC" ? WRAPPER_USDC_ADDRESS : WRAPPER_ETH_ADDRESS;
+
+  const [status, setStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
+  const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined);
+  
+  const [showBalance, setShowBalance] = useState(false);
+  const [decryptedBalance, setDecryptedBalance] = useState<number | null>(null);
+  const [isDecrypting, setIsDecrypting] = useState(false);
+  const [unwrapAmount, setUnwrapAmount] = useState("");
+
+  const { writeContractAsync } = useWriteContract();
+  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
+
+  // Reset UI states when the user toggles the currency
+  useEffect(() => {
+    setShowBalance(false);
+    setDecryptedBalance(null);
+    setUnwrapAmount("");
+    setStatus("idle");
+  }, [currency]);
+
+  // Read the user's Encrypted Wrapper Token Balance for the selected currency
+  const { data: encryptedBalance, refetch: refetchBalance } = useReadContract({
+    address: activeAddress,
+    abi: WRAPPER_ABI,
+    functionName: "getEncryptedBalance",
+    args: connectedAddress ? [connectedAddress as `0x${string}`] : undefined,
+    query: {
+      enabled: !!connectedAddress,
+    },
+  });
+
+  const handleRevealBalance = async () => {
+    if (showBalance) {
+      setShowBalance(false);
+      setDecryptedBalance(null);
+      return;
+    }
+
+    try {
+      setIsDecrypting(true);
+
+      const cofheWeb = await import("@cofhe/sdk/web");
+      const cofheCore = await import("@cofhe/sdk");
+      
+      const { createCofheConfig, createCofheClient } = cofheWeb;
+      const { FheTypes } = cofheCore;
+
+      if (!encryptedBalance) {
+        throw new Error("No encrypted balance found or zero balance.");
+      }
+
+      const config = createCofheConfig({ 
+        environment: "web",
+        supportedChains: [baseSepolia]
+      });
+      const client = await createCofheClient(config);
+
+      // Decrypt the Wrapper token balance
+      const result = await client
+        .decryptForView(BigInt(encryptedBalance as string), FheTypes.Uint64)
+        .withPermit()
+        .execute();
+        
+      // Dynamic decimal formatting based on token type
+      const decimals = currency === "USDC" ? 1e6 : 1e18;
+      setDecryptedBalance(Number(result) / decimals); 
+      setShowBalance(true);
+    } catch (err) {
+      console.error("Decryption failed:", err);
+    } finally {
+      setIsDecrypting(false);
+    }
+  };
+
+  const handleUnwrap = async () => {
+    if (!unwrapAmount) return;
+    try {
+      setStatus("pending");
+      
+      // Utilize viem's parseUnits to robustly translate strings/floats
+      const decimals = currency === "USDC" ? 6 : 18;
+      const amountToUnwrap = parseUnits(unwrapAmount, decimals);
+
+      const hash = await writeContractAsync({
+        address: activeAddress,
+        abi: WRAPPER_ABI,
+        functionName: "unwrap",
+        args: [amountToUnwrap],
+        gas: BigInt(8000000)
+      });
+      
+      setTxHash(hash);
+      setStatus("success");
+      setUnwrapAmount("");
+      
+      // Hide balance and refetch encrypted state after unwrap
+      setShowBalance(false);
+      setDecryptedBalance(null);
+      setTimeout(() => {
+        setStatus("idle");
+        refetchBalance();
+      }, 5000);
+    } catch (err) {
+      setStatus("error");
+      console.error(err);
+      setTimeout(() => setStatus("idle"), 4000);
+    }
+  };
+
+  const isLoading = status === "pending" || isConfirming;
+
+  return (
+    <div className="glass rounded-2xl p-6 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(90,41,228,0.2)" }}>
+            <Wallet size={17} className="text-violet-400" />
+          </div>
+          <div>
+            <h3 className="font-bold text-white text-base" style={{ fontFamily: "var(--font-display)" }}>Admin Wallet Unwrap</h3>
+            <p className="text-xs text-slate-500">Unwrap withdrawn FHE tokens</p>
+          </div>
+        </div>
+
+        {/* Currency Toggle */}
+        <div className="flex bg-slate-800/50 rounded-lg p-1 border border-slate-700/50">
+          <button 
+            onClick={() => setCurrency("USDC")}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${currency === "USDC" ? "bg-violet-500/20 text-violet-400" : "text-slate-400 hover:text-slate-300"}`}
+          >
+            USDC
+          </button>
+          <button 
+            onClick={() => setCurrency("ETH")}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${currency === "ETH" ? "bg-violet-500/20 text-violet-400" : "text-slate-400 hover:text-slate-300"}`}
+          >
+            ETH
+          </button>
+        </div>
+      </div>
+
+      {/* Balance preview */}
+      <div className="rounded-xl p-4 mb-4 flex items-center justify-between" style={{ background: "rgba(90,41,228,0.04)", border: "1px solid rgba(90,41,228,0.1)" }}>
+        <div className="w-full">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">FHE Encrypted Balance ({currency})</span>
+            <button onClick={handleRevealBalance} disabled={isDecrypting || !encryptedBalance} className="flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors disabled:opacity-50">
+              {isDecrypting ? (
+                <><Loader2 size={12} className="animate-spin" /> Decrypting...</>
+              ) : showBalance ? (
+                <><EyeOff size={12} /> Hide</>
+              ) : (
+                <><Eye size={12} /> Reveal</>
+              )}
+            </button>
+          </div>
+
+          <AnimatePresence mode="wait">
+            {showBalance && decryptedBalance !== null ? (
+              <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-baseline gap-1">
+                <span className="text-3xl font-bold text-violet-400" style={{ fontFamily: "var(--font-display)" }}>
+                  {currency === "USDC" ? "$" : "Ξ"}
+                  {decryptedBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: currency === "ETH" ? 4 : 2 })}
+                </span>
+                <span className="text-sm text-slate-500">FHE-{currency}</span>
+              </motion.div>
+            ) : (
+              <motion.div key="hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-3xl font-bold text-violet-400 tracking-widest" style={{ fontFamily: "var(--font-display)", marginTop: "-4px" }}>
+                ****
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-slate-500 mb-5 bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+        <Clock size={16} className="text-violet-500 shrink-0" /> 
+        <span>Withdrawing from the Escrow sends FHE-encrypted tokens to your wallet. <strong>Unwrap them below</strong> to convert back to public Base Sepolia {currency}.</span>
+      </div>
+
+      <AnimatePresence>
+        {status === "success" && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5 mb-3">
+            <CheckCircle2 size={14} /> Unwrap successful! Check your public wallet.
+          </motion.div>
+        )}
+        {status === "error" && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5 mb-3">
+            <AlertCircle size={14} /> Transaction failed. Please try again.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="mt-auto pt-2">
+        <label className="block text-xs font-medium text-slate-400 mb-2">Unwrap to Public Base Sepolia {currency}</label>
+        <div className="flex gap-2">
+          <input 
+            type="number" 
+            placeholder={`Amount to Unwrap`} 
+            className="input-field flex-1 border-violet-500/20 focus:border-violet-500/50"
+            value={unwrapAmount}
+            onChange={(e) => setUnwrapAmount(e.target.value)}
+            disabled={isLoading}
+          />
+          <button onClick={handleUnwrap} disabled={isLoading || !unwrapAmount} className="btn-primary bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border border-violet-500/30">
+            {isLoading ? <Loader2 size={16} className="animate-spin" /> : <><Unlock size={14} /> Unwrap</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────
 function AddressBanner({ address }: { address: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -404,7 +617,11 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: React.ElementTyp
   );
 }
 
+// ──────────────────────────────────────────────
+// Existing Subcomponents (AddEmployeeForm, PayrollCard)
+// ──────────────────────────────────────────────
 function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: number, contractAddress: `0x${string}` }) {
+  // Existing AddEmployeeForm Logic intact
   const [address, setAddress] = useState("");
   const [salary, setSalary] = useState("");
   const [currency, setCurrency] = useState<"0" | "1">("0");
@@ -443,9 +660,7 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
         
         await client.connect(publicClient, walletClient);
         
-        const decimals = currency === "0" ? 18 : 6; // ETH (18) vs USDC (6)
-        
-        // Utilize viem's parseUnits to robustly translate strings/floats
+        const decimals = currency === "0" ? 18 : 6; 
         const salaryInBaseUnits = parseUnits(salary, decimals);
 
         const encryptedInputs = await client.encryptInputs([
@@ -656,7 +871,7 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
     }
   };
 
- const handleProcessPayroll = async () => {
+  const handleProcessPayroll = async () => {
     try {
       setProcessStatus("pending");
       const hash = await writeContractAsync({
@@ -666,6 +881,7 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         args: [],
         gas: BigInt(8000000)
       });
+      useWaitForTransactionReceipt({ hash: hash });
       setProcessTxHash(hash);
       setProcessStatus("success");
       setTimeout(() => setProcessStatus("idle"), 5000);
@@ -749,12 +965,17 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
   );
 }
 
+// ──────────────────────────────────────────────
+// Main Dashboard Export
+// ──────────────────────────────────────────────
 export default function EmployerDashboard({ contractAddress }: EmployerDashboardProps) {
   const { data: employees } = useReadContract({
     address: contractAddress, 
     abi: PAYROLL_ABI,        
     functionName: "getEmployees",
   });
+
+  const { address: userAddress } = useAccount();
 
   const employeeList = (employees as `0x${string}`[] | undefined) ?? [];
 
@@ -773,7 +994,10 @@ export default function EmployerDashboard({ contractAddress }: EmployerDashboard
         <PayrollCard contractAddress={contractAddress} />
       </div>
 
-      <EscrowManagement contractAddress={contractAddress} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <EscrowManagement contractAddress={contractAddress} />
+        <EmployerUnwrapCard connectedAddress={userAddress} />
+      </div>
       
     </motion.div>
   );
