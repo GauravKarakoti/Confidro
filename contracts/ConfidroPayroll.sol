@@ -57,21 +57,11 @@ contract ConfidroPayroll {
         emit PrivaraEscrowSet(address(newEscrow));
     }
 
-    function setPrivaraEscrow(address _escrow) external onlyOwner {
-        privaraEscrow = _escrow;
-        emit PrivaraEscrowSet(_escrow);
-    }
-
     function addCompliance(address officer) external onlyOwner {
         isCompliance[officer] = true;
         FHE.allow(totalPayrollETH, officer);
         FHE.allow(totalPayrollUSDC, officer);
         emit ComplianceAdded(officer);
-    }
-
-    function getTotalsForCompliance() public view returns (euint64, euint64) {
-        require(isCompliance[msg.sender], "Not authorized");
-        return (totalPayrollETH, totalPayrollUSDC);
     }
     
     // currency: 0 for ETH, 1 for USDC

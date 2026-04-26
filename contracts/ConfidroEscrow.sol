@@ -45,11 +45,6 @@ contract ConfidroEscrow {
         tokenUSDC = IFHERC20(_tokenUSDC);
     }
 
-    // 1. Native ETH Deposit (Keeps a native buffer for gas abstraction or unwrapping mechanics)
-    function depositNative() external payable {
-        emit DepositedNative(msg.sender, msg.value);
-    }
-
     // 2. Token Deposit: Employer deposits the budget
     // currency: 0 for ETH, 1 for USDC
     function depositTokens(uint256 amount, uint8 currency) external {
@@ -78,22 +73,5 @@ contract ConfidroEscrow {
         }
 
         emit TokensDistributed(employees.length);
-    }
-
-    function withdrawNative(uint256 amount) external onlyOwner {
-        require(address(this).balance >= amount, "Insufficient balance");
-
-        (bool success, ) = payable(owner).call{value: amount}("");
-        require(success, "Transfer failed");
-    }
-
-    // Withdraw remaining/excess Token budget
-    function withdrawTokens(uint256 amount, uint8 currency) external onlyOwner {
-        require(currency == 0 || currency == 1, "Invalid currency");
-        if (currency == 0) {
-            tokenETH.transfer(owner, amount);
-        } else {
-            tokenUSDC.transfer(owner, amount);
-        }
     }
 }

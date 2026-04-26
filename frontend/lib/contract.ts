@@ -44,35 +44,6 @@ export const FACTORY_ABI = [
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "payrollContract",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "tokenETH",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "tokenUSDC",
-          "type": "address"
-        }
-      ],
-      "name": "createEscrow",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
       "inputs": [],
       "name": "createOrganization",
       "outputs": [
@@ -385,24 +356,6 @@ export const PAYROLL_ABI = [
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "getTotalsForCompliance",
-      "outputs": [
-        {
-          "internalType": "euint64",
-          "name": "",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "euint64",
-          "name": "",
-          "type": "bytes32"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "address",
@@ -509,19 +462,6 @@ export const PAYROLL_ABI = [
         }
       ],
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_escrow",
-          "type": "address"
-        }
-      ],
-      "name": "setPrivaraEscrow",
-      "outputs": [],
-      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -644,13 +584,6 @@ export const ESCROW_ABI = [
       "type": "event"
     },
     {
-      "inputs": [],
-      "name": "depositNative",
-      "outputs": [],
-      "stateMutability": "payable",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "uint256",
@@ -741,37 +674,6 @@ export const ESCROW_ABI = [
         }
       ],
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "withdrawNative",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint8",
-          "name": "currency",
-          "type": "uint8"
-        }
-      ],
-      "name": "withdrawTokens",
-      "outputs": [],
-      "stateMutability": "nonpayable",
       "type": "function"
     }
   ] as const;

@@ -239,16 +239,8 @@ describe("ConfidroPayroll", function () {
   // Compliance & Privara Settlement Tests
   // -------------------------------------------------------------------------
 
-  it("13. Should allow owner to set Privara Escrow and add Compliance Officer", async function () {
-    const dummyEscrowAddress = await employee2.getAddress(); 
+  it("13. Should allow owner to add Compliance Officer", async function () {
     const complianceAddress = await complianceOfficer.getAddress();
-
-    // Set Escrow
-    await expect(payroll.setPrivaraEscrow(dummyEscrowAddress))
-      .to.emit(payroll, "PrivaraEscrowSet")
-      .withArgs(dummyEscrowAddress);
-    
-    expect(await payroll.privaraEscrow()).to.equal(dummyEscrowAddress);
 
     // Add Compliance Officer
     await expect(payroll.addCompliance(complianceAddress))
@@ -258,7 +250,7 @@ describe("ConfidroPayroll", function () {
     expect(await payroll.isCompliance(complianceAddress)).to.be.true;
   });
 
-  it("14. Selective Disclosure: Compliance Officer can decrypt total payrolls but NOT individual salaries", async function () {
+  it("14. Selective Disclosure: Compliance Officer can NOT decrypt individual salaries", async function () {
     const fheOwner = await hre.cofhe.createClientWithBatteries(owner);
     const fheCompliance = await hre.cofhe.createClientWithBatteries(complianceOfficer);
     
@@ -271,13 +263,6 @@ describe("ConfidroPayroll", function () {
 
     // 2. Owner assigns the compliance role. 
     await payroll.addCompliance(complianceAddress);
-
-    // 3. Compliance Officer fetches the total payroll ciphertexts via specialized compliance view
-    const [ethTotal] = await payroll.connect(complianceOfficer).getTotalsForCompliance();
-
-    // Compliance Officer successfully decrypts the total
-    const decryptedTotal = await fheCompliance.decryptForView(ethTotal, FheTypes.Uint64).execute();
-    expect(Number(decryptedTotal)).to.equal(8200);
 
     // 4. Compliance Officer attempts to decrypt the individual employee's salary
     const storedSalary = await payroll.salaries(employee1Address);
