@@ -19,7 +19,6 @@ interface IFHERC20Wrapper {
     function transfer(address to, euint64 amount) external;
     function transferFrom(address from, address to, uint256 amount) external;
     function transfer(address to, uint256 amount) external;
-    
     // Wrapper specific functions
     function wrap(uint256 amount) external;
     function unwrap(uint256 amount) external;
@@ -33,6 +32,7 @@ contract ConfidroEscrow {
     // FHERC20 tokens used for confidential payroll
     IFHERC20Wrapper public tokenETH;  
     IFHERC20Wrapper public tokenUSDC;
+    
     euint64 public budgetETH;
     euint64 public budgetUSDC;
 
@@ -60,9 +60,13 @@ contract ConfidroEscrow {
         payrollContract = _payrollContract;
         tokenETH = IFHERC20Wrapper(_tokenETH);
         tokenUSDC = IFHERC20Wrapper(_tokenUSDC);
+        
         budgetETH = FHE.asEuint64(0);
+        FHE.allowThis(budgetETH); // [FIX ADDED] Good practice to allow initialization
         FHE.allow(budgetETH, _owner);
+        
         budgetUSDC = FHE.asEuint64(0);
+        FHE.allowThis(budgetUSDC); // [FIX ADDED] 
         FHE.allow(budgetUSDC, _owner);
     }
 
@@ -85,9 +89,12 @@ contract ConfidroEscrow {
 
             tokenETH.wrap(amount);
             budgetETH = FHE.add(budgetETH, FHE.asEuint64(amount));
+            
+            FHE.allowThis(budgetETH); // [FIX ADDED] Contract needs permission to compute next time
             FHE.allow(budgetETH, owner);
 
             emit DepositedNative(msg.sender, amount);
+
         } else {
             // 1. Verify no native ETH was accidentally sent with a USDC transaction
             require(msg.value == 0, "Native ETH sent with USDC deposit");
@@ -102,6 +109,8 @@ contract ConfidroEscrow {
 
             tokenUSDC.wrap(amount);
             budgetUSDC = FHE.add(budgetUSDC, FHE.asEuint64(amount));
+            
+            FHE.allowThis(budgetUSDC); // [FIX ADDED] Contract needs permission to compute next time
             FHE.allow(budgetUSDC, owner);
 
             emit DepositedTokens(msg.sender, address(tokenUSDC), amount);

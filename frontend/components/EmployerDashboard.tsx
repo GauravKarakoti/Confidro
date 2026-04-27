@@ -171,18 +171,18 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
         throw new Error("Please connect your wallet first.");
       }
 
+      // [FIX]: Read explicitly from the Escrow contract's allowed budget variables, 
+      // NOT the token wrapper's encrypted balances
       const encETH = await publicClient.readContract({
-        address: WRAPPER_ETH_ADDRESS,
-        abi: WRAPPER_ABI,
-        functionName: "getEncryptedBalance",
-        args: [currentEscrow as `0x${string}`],
+        address: currentEscrow as `0x${string}`,
+        abi: ESCROW_ABI,
+        functionName: "budgetETH",
       });
 
       const encUSDC = await publicClient.readContract({
-        address: WRAPPER_USDC_ADDRESS,
-        abi: WRAPPER_ABI,
-        functionName: "getEncryptedBalance",
-        args: [currentEscrow as `0x${string}`],
+        address: currentEscrow as `0x${string}`,
+        abi: ESCROW_ABI,
+        functionName: "budgetUSDC",
       });
 
       const cofheWeb = await import("@cofhe/sdk/web");
@@ -196,15 +196,14 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
       await client.connect(publicClient, walletClient);
       let permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
       
-      // Convert handles to BigInt safely
-      const ethHandle = BigInt(encETH as string || "0");
-      const usdcHandle = BigInt(encUSDC as string || "0");
+      // Convert handles to BigInt safely (handling both viem bigint and string returns)
+      const ethHandle = BigInt(encETH?.toString() || "0");
+      const usdcHandle = BigInt(encUSDC?.toString() || "0");
       
       let resETH = BigInt(0);
       let resUSDC = BigInt(0);
 
       try {
-        // --- FIX: Only push to KMS if handles are non-zero ---
         const promises = [];
         
         if (ethHandle !== BigInt(0)) {

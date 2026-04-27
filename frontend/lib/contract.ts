@@ -290,6 +290,25 @@ export const PAYROLL_ABI = [
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "complianceList",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "tokenETH",
           "type": "address"
@@ -527,6 +546,17 @@ export const ESCROW_ABI = [
       "type": "constructor"
     },
     {
+      "inputs": [
+        {
+          "internalType": "int32",
+          "name": "value",
+          "type": "int32"
+        }
+      ],
+      "name": "SecurityZoneOutOfBounds",
+      "type": "error"
+    },
+    {
       "anonymous": false,
       "inputs": [
         {
@@ -582,6 +612,32 @@ export const ESCROW_ABI = [
       ],
       "name": "TokensDistributed",
       "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "budgetETH",
+      "outputs": [
+        {
+          "internalType": "euint64",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "budgetUSDC",
+      "outputs": [
+        {
+          "internalType": "euint64",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
     },
     {
       "inputs": [

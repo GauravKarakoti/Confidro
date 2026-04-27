@@ -21,7 +21,11 @@ contract ConfidroPayroll {
     euint64 public totalPayrollUSDC;
     
     address[] public employeeList;
+    
+    // [FIX ADDED] Track compliance officers properly
+    address[] public complianceList; 
     mapping(address => bool) public isCompliance;
+    
     address public privaraEscrow;
 
     event EmployeeAdded(address indexed employee, euint64 encryptedSalary, uint8 currency);
@@ -37,6 +41,7 @@ contract ConfidroPayroll {
 
     constructor(address _owner) {
         owner = _owner;
+
         totalPayrollETH = FHE.asEuint64(0);
         totalPayrollUSDC = FHE.asEuint64(0);
         
@@ -61,15 +66,18 @@ contract ConfidroPayroll {
 
     function addCompliance(address officer) external onlyOwner {
         isCompliance[officer] = true;
+        complianceList.push(officer); // [FIX ADDED] Add to tracking array
+        
         FHE.allow(totalPayrollETH, officer);
         FHE.allow(totalPayrollUSDC, officer);
+        
         emit ComplianceAdded(officer);
     }
     
     // currency: 0 for ETH, 1 for USDC
     function addEmployee(address employee, InEuint64 calldata encryptedSalaryInput, uint8 currency) public onlyOwner {
         require(currency == 0 || currency == 1, "Invalid currency");
-        
+
         euint64 encryptedSalary = FHE.asEuint64(encryptedSalaryInput);
         FHE.allowThis(encryptedSalary);
         FHE.allow(encryptedSalary, owner);
@@ -79,7 +87,7 @@ contract ConfidroPayroll {
         paymentCurrency[employee] = currency;
         hasActiveSalary[employee] = true;
         employeeList.push(employee);
-        
+
         if (currency == 0) {
             totalPayrollETH = FHE.add(totalPayrollETH, encryptedSalary);
             FHE.allowThis(totalPayrollETH);
@@ -90,15 +98,10 @@ contract ConfidroPayroll {
             FHE.allow(totalPayrollUSDC, owner);
         }
         
-        // Re-apply compliance permissions to the new totalPayroll ciphertext handles
-        for (uint i = 0; i < employeeList.length; i++) {
-            if (isCompliance[employeeList[i]]) {
-                if (currency == 0) {
-                    FHE.allow(totalPayrollETH, employeeList[i]);
-                } else {
-                    FHE.allow(totalPayrollUSDC, employeeList[i]);
-                }
-            }
+        // [FIX ADDED] Re-apply compliance permissions using the correct array
+        for (uint i = 0; i < complianceList.length; i++) {
+            FHE.allow(totalPayrollETH, complianceList[i]);
+            FHE.allow(totalPayrollUSDC, complianceList[i]);
         }
         
         emit EmployeeAdded(employee, encryptedSalary, currency);
@@ -106,6 +109,7 @@ contract ConfidroPayroll {
     
     function processPayroll() public onlyOwner {
         emit PayrollProcessed(block.timestamp);
+
         if (privaraEscrow != address(0)) {
             euint64[] memory amounts = new euint64[](employeeList.length);
             uint8[] memory currencies = new uint8[](employeeList.length);
@@ -120,7 +124,7 @@ contract ConfidroPayroll {
 
                 // 1. Allow the Escrow contract
                 FHE.allow(empSalary, privaraEscrow);
-                
+
                 // 2. Allow the actual Token Wrapper contracts executing the transfer
                 if (paymentCurrency[emp] == 0) {
                     FHE.allow(empSalary, tETH);
@@ -137,11 +141,12 @@ contract ConfidroPayroll {
 
     function withdrawSalary() public {
         require(hasActiveSalary[msg.sender], "No salary to withdraw");
+
         euint64 salary = salaries[msg.sender];
         uint8 currency = paymentCurrency[msg.sender];
         
         hasActiveSalary[msg.sender] = false;
-        
+
         if (currency == 0) {
             totalPayrollETH = FHE.sub(totalPayrollETH, salary);
             FHE.allowThis(totalPayrollETH);
@@ -150,6 +155,12 @@ contract ConfidroPayroll {
             totalPayrollUSDC = FHE.sub(totalPayrollUSDC, salary);
             FHE.allowThis(totalPayrollUSDC);
             FHE.allow(totalPayrollUSDC, owner);
+        }
+
+        // [FIX ADDED] Must re-allow compliance officers when someone withdraws
+        for (uint i = 0; i < complianceList.length; i++) {
+            FHE.allow(totalPayrollETH, complianceList[i]);
+            FHE.allow(totalPayrollUSDC, complianceList[i]);
         }
         
         emit SalaryWithdrawn(msg.sender, salary, currency);
