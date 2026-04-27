@@ -194,27 +194,46 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
       const config = createCofheConfig({ environment: "web", supportedChains: [baseSepolia] });
       const client = await createCofheClient(config);
       await client.connect(publicClient, walletClient);
-      
       let permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
-      let resETH, resUSDC;
+      
+      // Convert handles to BigInt safely
+      const ethHandle = BigInt(encETH as string || "0");
+      const usdcHandle = BigInt(encUSDC as string || "0");
+      
+      let resETH = BigInt(0);
+      let resUSDC = BigInt(0);
 
       try {
-        [resETH, resUSDC] = await Promise.all([
-            client.decryptForView(BigInt(encETH as string), FheTypes.Uint64).withPermit(permit).execute(),
-            client.decryptForView(BigInt(encUSDC as string), FheTypes.Uint64).withPermit(permit).execute()
-        ]);
-      } catch (err: any) {
-        // If the permit is expired, remove it and prompt for a new one
-        if (err.message?.toLowerCase().includes("expired")) {
-            client.permits.removeActivePermit(chainId, userAddress);
-            permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
-            
-            [resETH, resUSDC] = await Promise.all([
-                client.decryptForView(BigInt(encETH as string), FheTypes.Uint64).withPermit(permit).execute(),
-                client.decryptForView(BigInt(encUSDC as string), FheTypes.Uint64).withPermit(permit).execute()
-            ]);
+        // --- FIX: Only push to KMS if handles are non-zero ---
+        const promises = [];
+        
+        if (ethHandle !== BigInt(0)) {
+          promises.push(client.decryptForView(ethHandle, FheTypes.Uint64).withPermit(permit).execute());
         } else {
-            throw err;
+          promises.push(Promise.resolve(BigInt(0)));
+        }
+
+        if (usdcHandle !== BigInt(0)) {
+          promises.push(client.decryptForView(usdcHandle, FheTypes.Uint64).withPermit(permit).execute());
+        } else {
+          promises.push(Promise.resolve(BigInt(0)));
+        }
+
+        [resETH, resUSDC] = await Promise.all(promises);
+        
+      } catch (err: any) {
+        // Retry logic for expired permits
+        if (err.message?.toLowerCase().includes("expired")) {
+          client.permits.removeActivePermit(chainId, userAddress);
+          permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+          
+          const retryPromises = [];
+          retryPromises.push(ethHandle !== BigInt(0) ? client.decryptForView(ethHandle, FheTypes.Uint64).withPermit(permit).execute() : Promise.resolve(BigInt(0)));
+          retryPromises.push(usdcHandle !== BigInt(0) ? client.decryptForView(usdcHandle, FheTypes.Uint64).withPermit(permit).execute() : Promise.resolve(BigInt(0)));
+          
+          [resETH, resUSDC] = await Promise.all(retryPromises);
+        } else {
+          throw err;
         }
       }
         
@@ -412,6 +431,12 @@ function EmployerUnwrapCard({ connectedAddress }: { connectedAddress?: string })
 
     try {
       setIsDecrypting(true);
+
+      if (!encryptedBalance || BigInt(encryptedBalance as string) === BigInt(0)) {
+        setDecryptedBalance(0);
+        setShowBalance(true);
+        return;
+      }
 
       if (!publicClient || !walletClient || !userAddress || !chainId) {
         throw new Error("Please connect your wallet first.");

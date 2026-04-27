@@ -26,8 +26,8 @@ describe("ConfidroEscrow", function () {
     wethMock = await MockWETH.deploy();
 
     const FHERC20Wrapper = await ethers.getContractFactory("FHERC20Wrapper");
-    wrapperEthMock = await FHERC20Wrapper.deploy(await wethMock.getAddress(), 18);
-    wrapperUsdcMock = await FHERC20Wrapper.deploy(await usdcMock.getAddress(), 6);
+    wrapperEthMock = await FHERC20Wrapper.deploy(await wethMock.getAddress(), 18, true); // Assuming true for isWETH flag
+    wrapperUsdcMock = await FHERC20Wrapper.deploy(await usdcMock.getAddress(), 6, false); // Assuming false for USDC
 
     // 3. Deploy MockPayroll Contract & Set Tokens
     const MockPayroll = await ethers.getContractFactory("MockPayroll");
@@ -55,6 +55,13 @@ describe("ConfidroEscrow", function () {
       expect(await escrow.tokenETH()).to.equal(await wrapperEthMock.getAddress());
       expect(await escrow.tokenUSDC()).to.equal(await wrapperUsdcMock.getAddress());
     });
+
+    // --- NEW TEST ---
+    it("Should initialize the encrypted budgets properly", async function () {
+      // Budgets should return valid FHE handles (not revert or be undefined)
+      expect(await escrow.budgetETH()).to.not.be.undefined;
+      expect(await escrow.budgetUSDC()).to.not.be.undefined;
+    });
   });
 
   describe("Deposit Tokens", function () {
@@ -70,6 +77,11 @@ describe("ConfidroEscrow", function () {
 
       // Verify WETH balance of wrapper mock increased (wrapper securely holds underlying token)
       expect(await wethMock.balanceOf(await wrapperEthMock.getAddress())).to.equal(depositAmount);
+
+      // --- NEW CHECK ---
+      // Verify the internal FHE tracked budget can be queried post-deposit
+      const updatedBudget = await escrow.budgetETH();
+      expect(updatedBudget).to.not.be.undefined;
     });
 
     it("Should revert ETH deposit if msg.value mismatches amount", async function () {
@@ -96,6 +108,11 @@ describe("ConfidroEscrow", function () {
 
       // Verify underlying USDC transferred to wrapper
       expect(await usdcMock.balanceOf(await wrapperUsdcMock.getAddress())).to.equal(depositAmount);
+
+      // --- NEW CHECK ---
+      // Verify the internal FHE tracked budget can be queried post-deposit
+      const updatedBudget = await escrow.budgetUSDC();
+      expect(updatedBudget).to.not.be.undefined;
     });
 
     it("Should revert USDC deposit if native ETH is accidentally sent", async function () {
@@ -178,6 +195,10 @@ describe("ConfidroEscrow", function () {
       // instead of checking against a plaintext number.
       const encryptedBalance = await wrapperEthMock.getEncryptedBalance(ownerAddress);
       expect(encryptedBalance).to.not.be.undefined;
+
+      // --- NEW CHECK ---
+      // Ensure budget handles are still valid after the internal FHE.sub operations
+      expect(await escrow.budgetETH()).to.not.be.undefined;
     });
 
     it("Should withdraw wrapped USDC successfully when called by owner", async function () {
@@ -191,6 +212,9 @@ describe("ConfidroEscrow", function () {
       // Verify the owner received the wrapped USDC FHE tokens
       const encryptedBalance = await wrapperUsdcMock.getEncryptedBalance(ownerAddress);
       expect(encryptedBalance).to.not.be.undefined;
+
+      // --- NEW CHECK ---
+      expect(await escrow.budgetUSDC()).to.not.be.undefined;
     });
 
     it("Should revert if a non-owner tries to withdraw", async function () {

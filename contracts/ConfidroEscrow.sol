@@ -33,6 +33,8 @@ contract ConfidroEscrow {
     // FHERC20 tokens used for confidential payroll
     IFHERC20Wrapper public tokenETH;  
     IFHERC20Wrapper public tokenUSDC;
+    euint64 public budgetETH;
+    euint64 public budgetUSDC;
 
     event DepositedNative(address indexed sender, uint256 amount);
     event DepositedTokens(address indexed sender, address token, uint256 amount);
@@ -58,6 +60,10 @@ contract ConfidroEscrow {
         payrollContract = _payrollContract;
         tokenETH = IFHERC20Wrapper(_tokenETH);
         tokenUSDC = IFHERC20Wrapper(_tokenUSDC);
+        budgetETH = FHE.asEuint64(0);
+        FHE.allow(budgetETH, _owner);
+        budgetUSDC = FHE.asEuint64(0);
+        FHE.allow(budgetUSDC, _owner);
     }
 
     // Currency: 0 for ETH, 1 for USDC
@@ -77,8 +83,9 @@ contract ConfidroEscrow {
             // 3. Approve FHERC20Wrapper to spend WETH
             IERC20(weth).approve(address(tokenETH), amount);
 
-            // 4. Wrap WETH -> Encrypted FHE ETH
             tokenETH.wrap(amount);
+            budgetETH = FHE.add(budgetETH, FHE.asEuint64(amount));
+            FHE.allow(budgetETH, owner);
 
             emit DepositedNative(msg.sender, amount);
         } else {
@@ -93,8 +100,9 @@ contract ConfidroEscrow {
             // 3. Approve FHERC20Wrapper to spend standard USDC
             IERC20(standardUSDC).approve(address(tokenUSDC), amount);
 
-            // 4. Wrap Standard USDC -> Encrypted FHE USDC
             tokenUSDC.wrap(amount);
+            budgetUSDC = FHE.add(budgetUSDC, FHE.asEuint64(amount));
+            FHE.allow(budgetUSDC, owner);
 
             emit DepositedTokens(msg.sender, address(tokenUSDC), amount);
         }

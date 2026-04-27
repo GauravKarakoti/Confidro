@@ -140,6 +140,12 @@ function WithdrawCard({
     try {
       setIsDecrypting(true);
 
+      if (!encryptedBalance || BigInt(encryptedBalance as string) === BigInt(0)) {
+        setDecryptedBalance(0);
+        setShowBalance(true);
+        return;
+      }
+
       if (!publicClient || !walletClient || !userAddress || !chainId) {
         throw new Error("Please connect your wallet first.");
       }
