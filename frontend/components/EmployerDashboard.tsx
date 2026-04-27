@@ -195,12 +195,28 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
       const client = await createCofheClient(config);
       await client.connect(publicClient, walletClient);
       
-      const permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+      let permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+      let resETH, resUSDC;
 
-      const [resETH, resUSDC] = await Promise.all([
-          client.decryptForView(BigInt(encETH as string), FheTypes.Uint64).withPermit(permit).execute(),
-          client.decryptForView(BigInt(encUSDC as string), FheTypes.Uint64).withPermit(permit).execute()
-      ]);
+      try {
+        [resETH, resUSDC] = await Promise.all([
+            client.decryptForView(BigInt(encETH as string), FheTypes.Uint64).withPermit(permit).execute(),
+            client.decryptForView(BigInt(encUSDC as string), FheTypes.Uint64).withPermit(permit).execute()
+        ]);
+      } catch (err: any) {
+        // If the permit is expired, remove it and prompt for a new one
+        if (err.message?.toLowerCase().includes("expired")) {
+            client.permits.removeActivePermit(chainId, userAddress);
+            permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+            
+            [resETH, resUSDC] = await Promise.all([
+                client.decryptForView(BigInt(encETH as string), FheTypes.Uint64).withPermit(permit).execute(),
+                client.decryptForView(BigInt(encUSDC as string), FheTypes.Uint64).withPermit(permit).execute()
+            ]);
+        } else {
+            throw err;
+        }
+      }
         
       setBudgetETH(formatUnits(resETH, 18));
       setBudgetUSDC(formatUnits(resUSDC, 6));
@@ -348,9 +364,6 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   );
 }
 
-// ──────────────────────────────────────────────
-// Unwrap wallet component for Employers (Modeled heavily after Employee's WithdrawCard)
-// ──────────────────────────────────────────────
 function EmployerUnwrapCard({ connectedAddress }: { connectedAddress?: string }) {
   const [currency, setCurrency] = useState<"USDC" | "ETH">("USDC");
   const activeAddress = currency === "USDC" ? WRAPPER_USDC_ADDRESS : WRAPPER_ETH_ADDRESS;
@@ -365,6 +378,11 @@ function EmployerUnwrapCard({ connectedAddress }: { connectedAddress?: string })
 
   const { writeContractAsync } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
+
+  // Add these hooks to access the necessary parameters for the permit
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  const { address: userAddress, chainId } = useAccount();
 
   // Reset UI states when the user toggles the currency
   useEffect(() => {
@@ -395,6 +413,10 @@ function EmployerUnwrapCard({ connectedAddress }: { connectedAddress?: string })
     try {
       setIsDecrypting(true);
 
+      if (!publicClient || !walletClient || !userAddress || !chainId) {
+        throw new Error("Please connect your wallet first.");
+      }
+
       const cofheWeb = await import("@cofhe/sdk/web");
       const cofheCore = await import("@cofhe/sdk");
       
@@ -410,12 +432,29 @@ function EmployerUnwrapCard({ connectedAddress }: { connectedAddress?: string })
         supportedChains: [baseSepolia]
       });
       const client = await createCofheClient(config);
+      await client.connect(publicClient, walletClient);
 
-      // Decrypt the Wrapper token balance
-      const result = await client
-        .decryptForView(BigInt(encryptedBalance as string), FheTypes.Uint64)
-        .withPermit()
-        .execute();
+      let permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+      let result;
+
+      try {
+        result = await client
+          .decryptForView(BigInt(encryptedBalance as string), FheTypes.Uint64)
+          .withPermit(permit)
+          .execute();
+      } catch (err: any) {
+        if (err.message?.toLowerCase().includes("expired")) {
+            client.permits.removeActivePermit(chainId, userAddress);
+            permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+            
+            result = await client
+              .decryptForView(BigInt(encryptedBalance as string), FheTypes.Uint64)
+              .withPermit(permit)
+              .execute();
+        } else {
+            throw err;
+        }
+      }
         
       // Dynamic decimal formatting based on token type
       const decimals = currency === "USDC" ? 1e6 : 1e18;
@@ -853,14 +892,29 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         });
         const client = await createCofheClient(config);
         await client.connect(publicClient, walletClient);
-        const permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+        
+        let permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+        let resETH, resUSDC;
 
-        const [resETH, resUSDC] = await Promise.all([
-            client.decryptForView(encETH, FheTypes.Uint64).withPermit(permit).execute(),
-            client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute()
-        ]);
+        try {
+            [resETH, resUSDC] = await Promise.all([
+                client.decryptForView(encETH, FheTypes.Uint64).withPermit(permit).execute(),
+                client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute()
+            ]);
+        } catch (err: any) {
+            if (err.message?.toLowerCase().includes("expired")) {
+                client.permits.removeActivePermit(chainId, userAddress);
+                permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+                
+                [resETH, resUSDC] = await Promise.all([
+                    client.decryptForView(encETH, FheTypes.Uint64).withPermit(permit).execute(),
+                    client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute()
+                ]);
+            } else {
+                throw err;
+            }
+        }
           
-        // FIX: Format the base units back to human-readable numbers using viem's formatUnits
         setDecryptedETH(Number(formatUnits(resETH, 18)));
         setDecryptedUSDC(Number(formatUnits(resUSDC, 6)));
         setShowTotal(true);

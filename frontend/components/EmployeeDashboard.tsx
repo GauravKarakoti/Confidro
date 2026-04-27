@@ -8,6 +8,7 @@ import {
   useAccount,
   useWaitForTransactionReceipt,
   usePublicClient,
+  useWalletClient,
 } from "wagmi";
 import {
   Wallet,
@@ -84,9 +85,6 @@ function EmployeeRow({
   );
 }
 
-// ──────────────────────────────────────────────
-// Withdraw card (Multi-Currency Support)
-// ──────────────────────────────────────────────
 function WithdrawCard({
   connectedAddress,
   isRegistered,
@@ -107,6 +105,11 @@ function WithdrawCard({
 
   const { writeContractAsync } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
+
+  // Add the required hooks for CoFHE client connection
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  const { address: userAddress, chainId } = useAccount();
 
   // Reset UI states when the user toggles the currency
   useEffect(() => {
@@ -137,6 +140,10 @@ function WithdrawCard({
     try {
       setIsDecrypting(true);
 
+      if (!publicClient || !walletClient || !userAddress || !chainId) {
+        throw new Error("Please connect your wallet first.");
+      }
+
       const cofheWeb = await import("@cofhe/sdk/web");
       // @ts-ignore
       const cofheCore = await import("@cofhe/sdk");
@@ -153,12 +160,33 @@ function WithdrawCard({
         supportedChains: [baseSepolia]
       });
       const client = await createCofheClient(config);
+      
+      // FIX 1: Connect the client before attempting to use permits
+      await client.connect(publicClient, walletClient);
 
-      // Decrypt the Wrapper token balance
-      const result = await client
-        .decryptForView(BigInt(encryptedBalance), FheTypes.Uint64)
-        .withPermit()
-        .execute();
+      // FIX 2: Explicitly fetch the permit to allow retry logic
+      let permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+      let result;
+
+      try {
+        result = await client
+          .decryptForView(BigInt(encryptedBalance as string), FheTypes.Uint64)
+          .withPermit(permit)
+          .execute();
+      } catch (err: any) {
+        // Retry logic for expired permits
+        if (err.message?.toLowerCase().includes("expired")) {
+            client.permits.removeActivePermit(chainId, userAddress);
+            permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
+            
+            result = await client
+              .decryptForView(BigInt(encryptedBalance as string), FheTypes.Uint64)
+              .withPermit(permit)
+              .execute();
+        } else {
+            throw err;
+        }
+      }
         
       // Dynamic decimal formatting based on token type
       const decimals = currency === "USDC" ? 1e6 : 1e18;
