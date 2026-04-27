@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@cofhe/sdk':
-        specifier: ^0.5.0
-        version: 0.5.0(@types/react@19.2.14)(@wagmi/core@2.22.1(@tanstack/query-core@5.100.5)(@types/react@19.2.14)(immer@10.2.0)(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(react@19.2.5)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6))
+        specifier: ^0.5.1
+        version: 0.5.1(@types/react@19.2.14)(@wagmi/core@2.22.1(@tanstack/query-core@5.100.5)(@types/react@19.2.14)(immer@10.2.0)(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(react@19.2.5)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6))
       '@reineira-os/sdk':
         specifier: ^0.2.0
         version: 0.2.0(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.5)(use-sync-external-store@1.4.0(react@19.2.5))(utf-8-validate@5.0.10)
@@ -193,8 +193,8 @@ packages:
   '@base-org/account@2.4.0':
     resolution: {integrity: sha512-A4Umpi8B9/pqR78D1Yoze4xHyQaujioVRqqO3d6xuDFw9VRtjg6tK3bPlwE0aW+nVH/ntllCpPa2PbI8Rnjcug==}
 
-  '@cofhe/sdk@0.5.0':
-    resolution: {integrity: sha512-KqYV2bNUVTRUsTJrKl+4i37Nf2bkcHefO0+0RvVn4GtlP13AFde1+WXZ4vSHwkLVXAQjIIvqqz3vmAAPQMmzhg==}
+  '@cofhe/sdk@0.5.1':
+    resolution: {integrity: sha512-QloCL7LbEVrDDDrzwNUzUEB+E2joYggW6G8xeW1gpu1ES4kI5GAgs15G/5/qQ0fdHIU8HIZ85QWs9eIq7JzQhA==}
     peerDependencies:
       '@nomicfoundation/hardhat-ethers': ^3.0.0
       '@wagmi/core': ^2.0.0
@@ -4366,7 +4366,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@cofhe/sdk@0.5.0(@types/react@19.2.14)(@wagmi/core@2.22.1(@tanstack/query-core@5.100.5)(@types/react@19.2.14)(immer@10.2.0)(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(react@19.2.5)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6))':
+  '@cofhe/sdk@0.5.1(@types/react@19.2.14)(@wagmi/core@2.22.1(@tanstack/query-core@5.100.5)(@types/react@19.2.14)(immer@10.2.0)(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(react@19.2.5)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6))':
     dependencies:
       iframe-shared-storage: 1.0.34
       immer: 10.1.1
