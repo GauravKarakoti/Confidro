@@ -317,13 +317,13 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
                 <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex flex-col gap-2 bg-white/5 p-4 rounded-xl">
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-bold text-blue-400" style={{ fontFamily: "var(--font-display)" }}>
-                      {parseFloat(budgetETH).toLocaleString()}
+                      {parseFloat(budgetETH)}
                     </span>
                     <span className="text-sm text-slate-500">ETH Available</span>
                   </div>
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>
-                      ${parseFloat(budgetUSDC).toLocaleString()}
+                      ${parseFloat(budgetUSDC)}
                     </span>
                     <span className="text-sm text-slate-500">USDC Available</span>
                   </div>
@@ -579,7 +579,7 @@ function EmployerUnwrapCard({ connectedAddress }: { connectedAddress?: string })
               <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-baseline gap-1">
                 <span className="text-3xl font-bold text-violet-400" style={{ fontFamily: "var(--font-display)" }}>
                   {currency === "USDC" ? "$" : "Ξ"}
-                  {decryptedBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: currency === "ETH" ? 4 : 2 })}
+                  {decryptedBalance}
                 </span>
                 <span className="text-sm text-slate-500">FHE-{currency}</span>
               </motion.div>
@@ -938,7 +938,7 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
                 throw err;
             }
         }
-          
+        
         setDecryptedETH(Number(formatUnits(resETH, 18)));
         setDecryptedUSDC(Number(formatUnits(resUSDC, 6)));
         setShowTotal(true);
@@ -1001,13 +1001,13 @@ function PayrollCard({ contractAddress }: { contractAddress: `0x${string}` }) {
             <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex flex-col gap-2">
               <div className="flex items-baseline gap-1">
                 <span className="text-2xl font-bold text-blue-400" style={{ fontFamily: "var(--font-display)" }}>
-                  {decryptedETH.toLocaleString()}
+                  {decryptedETH}
                 </span>
                 <span className="text-sm text-slate-500">ETH /cycle</span>
               </div>
               <div className="flex items-baseline gap-1">
                 <span className="text-2xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>
-                  ${decryptedUSDC.toLocaleString()}
+                  ${decryptedUSDC}
                 </span>
                 <span className="text-sm text-slate-500">USDC /cycle</span>
               </div>

@@ -5,9 +5,11 @@ import { useReadContract, useAccount, usePublicClient, useWalletClient } from "w
 import { Lock, Eye, Loader2, ShieldAlert } from "lucide-react";
 import { PAYROLL_ABI } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
+import { formatUnits } from "viem";
 
 export default function ComplianceDashboard({ contractAddress }: { contractAddress: `0x${string}` }) {
-  const [decryptedTotal, setDecryptedTotal] = useState<number | null>(null);
+  const [decryptedETH, setDecryptedETH] = useState<string | null>(null);
+  const [decryptedUSDC, setDecryptedUSDC] = useState<string | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
   
   const { address: userAddress, chainId } = useAccount();
@@ -26,7 +28,7 @@ export default function ComplianceDashboard({ contractAddress }: { contractAddre
     try {
       setIsDecrypting(true);
       const cofheWeb = await import("@cofhe/sdk/web");
-      const cofheCore = await import("@cofhe/sdk"); // Import core for types
+      const cofheCore = await import("@cofhe/sdk"); 
       const { createCofheConfig, createCofheClient } = cofheWeb;
       const { FheTypes } = cofheCore;
 
@@ -34,20 +36,38 @@ export default function ComplianceDashboard({ contractAddress }: { contractAddre
       const client = await createCofheClient(config);
       await client.connect(publicClient!, walletClient!);
 
-      // Generate permit to prove identity to the FHE network
-      const permit = await client.permits.getOrCreateSelfPermit(chainId!, userAddress!);
+      let permit = await client.permits.getOrCreateSelfPermit(chainId!, userAddress!);
 
-      // FIX: encryptedTotal is [ethHandle, usdcHandle]
-      // We take index 1 for USDC and convert the 0x hex string to BigInt
-      const usdcHandle = BigInt(encryptedTotal[1]);
+      // Extract both handles
+      const handles = encryptedTotal.map(h => BigInt(h));
+      const [encETH, encUSDC] = handles;
 
-      // Decrypt the total payroll only (Selective Disclosure)
-      const result = await client
-        .decryptForView(usdcHandle, FheTypes.Uint64) 
-        .withPermit(permit)
-        .execute();
+      let resETH, resUSDC;
 
-      setDecryptedTotal(Number(result));
+      try {
+        // Decrypt both totals concurrently
+        [resETH, resUSDC] = await Promise.all([
+            client.decryptForView(encETH, FheTypes.Uint64).withPermit(permit).execute(),
+            client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute()
+        ]);
+      } catch (err: any) {
+        // Retry logic for expired permits
+        if (err.message?.toLowerCase().includes("expired")) {
+            client.permits.removeActivePermit(chainId!, userAddress!);
+            permit = await client.permits.getOrCreateSelfPermit(chainId!, userAddress!);
+            
+            [resETH, resUSDC] = await Promise.all([
+                client.decryptForView(encETH, FheTypes.Uint64).withPermit(permit).execute(),
+                client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute()
+            ]);
+        } else {
+            throw err;
+        }
+      }
+
+      // Format with correct decimals based on the token
+      setDecryptedETH(formatUnits(resETH, 18));
+      setDecryptedUSDC(formatUnits(resUSDC, 6));
     } catch (err) {
       console.error("Compliance decryption failed", err);
     } finally {
@@ -70,11 +90,23 @@ export default function ComplianceDashboard({ contractAddress }: { contractAddre
       <div className="bg-slate-900/50 rounded-xl p-8 border border-white/10 text-center">
         <p className="text-xs text-slate-500 uppercase tracking-widest mb-4">Total Organization Liability</p>
         
-        {decryptedTotal !== null ? (
+        {decryptedETH !== null && decryptedUSDC !== null ? (
           <div className="animate-in fade-in slide-in-from-bottom-2">
-            <h1 className="text-5xl font-bold text-emerald-400 mb-2 font-display">
-              ${decryptedTotal.toLocaleString()}
-            </h1>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12 mb-4">
+              <div className="text-center">
+                <h1 className="text-4xl sm:text-5xl font-bold text-blue-400 mb-1 font-display">
+                  {Number(decryptedETH)} <span className="text-xl sm:text-2xl text-blue-400/50">ETH</span>
+                </h1>
+                <p className="text-sm text-slate-500">ETH Liability</p>
+              </div>
+              <div className="hidden sm:block w-px h-16 bg-slate-700"></div>
+              <div className="text-center">
+                <h1 className="text-4xl sm:text-5xl font-bold text-emerald-400 mb-1 font-display">
+                  ${Number(decryptedUSDC)}
+                </h1>
+                <p className="text-sm text-slate-500">USDC Liability</p>
+              </div>
+            </div>
             <p className="text-sm text-slate-500">Decrypted securely via FHE</p>
           </div>
         ) : (

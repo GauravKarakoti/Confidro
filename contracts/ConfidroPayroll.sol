@@ -98,7 +98,6 @@ contract ConfidroPayroll {
             FHE.allow(totalPayrollUSDC, owner);
         }
         
-        // [FIX ADDED] Re-apply compliance permissions using the correct array
         for (uint i = 0; i < complianceList.length; i++) {
             FHE.allow(totalPayrollETH, complianceList[i]);
             FHE.allow(totalPayrollUSDC, complianceList[i]);

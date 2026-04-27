@@ -135,10 +135,18 @@ contract ConfidroEscrow {
         for (uint i = 0; i < employees.length; i++) {
             if (currencies[i] == 0) {
                 tokenETH.transfer(employees[i], amounts[i]);
+                budgetETH = FHE.sub(budgetETH, amounts[i]);
             } else {
                 tokenUSDC.transfer(employees[i], amounts[i]);
+                budgetUSDC = FHE.sub(budgetUSDC, amounts[i]);
             }
         }
+        
+        // Grant access to the newly computed ciphertext budgets
+        FHE.allowThis(budgetETH);
+        FHE.allow(budgetETH, owner);
+        FHE.allowThis(budgetUSDC);
+        FHE.allow(budgetUSDC, owner);
 
         emit TokensDistributed(employees.length);
     }
