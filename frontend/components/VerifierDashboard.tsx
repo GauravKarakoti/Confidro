@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation"; // <-- Added Next.js hook
 import { motion, AnimatePresence } from "framer-motion";
 import { useReadContract, useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { FileKey, Loader2, ShieldCheck, AlertCircle, Building, Search } from "lucide-react";
@@ -20,13 +21,14 @@ export default function VerifierDashboard() {
   const { address: verifierAddress, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
-
+  
   // --- Auto-fill from URL Parameters ---
+  const searchParams = useSearchParams(); // <-- Initialize hook
+
   useEffect(() => {
-    // If you are using Next.js App Router, you might use useSearchParams() instead
-    const params = new URLSearchParams(window.location.search);
-    const orgParam = params.get("org");
-    const empParam = params.get("emp");
+    // Safely extract parameters using the Next.js hook
+    const orgParam = searchParams.get("org");
+    const empParam = searchParams.get("emp");
 
     if (orgParam && orgParam.length === 42) {
       setContractAddress(orgParam);
@@ -35,7 +37,7 @@ export default function VerifierDashboard() {
     if (empParam && empParam.length === 42) {
       setEmployeeAddress(empParam);
     }
-  }, []);
+  }, [searchParams]); // <-- Depend on searchParams
 
   // Fetch the encrypted income using the specific function in ConfidroPayroll.sol
   const { data: encryptedIncome, error: contractError } = useReadContract({
