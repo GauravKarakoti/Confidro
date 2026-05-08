@@ -39,14 +39,24 @@ export default function VerifierDashboard() {
     }
   }, [searchParams]); // <-- Depend on searchParams
 
-  // Fetch the encrypted income using the specific function in ConfidroPayroll.sol
-  const { data: encryptedIncome, error: contractError } = useReadContract({
+  const { 
+    data: encryptedIncome, 
+    error: contractError,
+    isLoading: isContractLoading // <-- 1. Extract isLoading
+  } = useReadContract({
     address: activeContract as `0x${string}`,
     abi: PAYROLL_ABI,
     functionName: "verifyEmployeeIncome",
-    args: employeeAddress ? [employeeAddress as `0x${string}`] : undefined,
-    query: { enabled: !!activeContract && employeeAddress.length === 42 },
+    args: employeeAddress && employeeAddress.length === 42 ? [employeeAddress as `0x${string}`] : undefined,
+    account: verifierAddress, // <-- 2. Explicitly pass the caller's address for the msg.sender permit check
+    query: { 
+      // 3. Prevent fetching until we have the contract, employee, AND the connected verifier wallet
+      enabled: !!activeContract && employeeAddress.length === 42 && !!verifierAddress 
+    },
   });
+
+  // A better console log to debug the state
+  console.log("Read Contract State:", { encryptedIncome, contractError, isContractLoading });
 
   const handleConnectOrg = (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,7 +186,6 @@ export default function VerifierDashboard() {
           
           <div className="flex gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
               <input 
                 type="text" 
                 placeholder="0x..." 
@@ -187,10 +196,17 @@ export default function VerifierDashboard() {
             </div>
             <button 
               onClick={handleVerify} 
-              disabled={status === "verifying" || employeeAddress.length !== 42} 
+              disabled={status === "verifying" || employeeAddress.length !== 42 || isContractLoading} 
               className="btn-primary flex items-center gap-2 px-6"
             >
-              {status === "verifying" ? <><Loader2 size={16} className="animate-spin" /> Requesting...</> : "Verify"}
+              {status === "verifying" || isContractLoading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" /> 
+                  {isContractLoading ? "Fetching On-Chain..." : "Decrypting..."}
+                </>
+              ) : (
+                "Verify"
+              )}
             </button>
           </div>
 
