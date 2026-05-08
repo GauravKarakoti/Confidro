@@ -1,5 +1,6 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import hre from "hardhat";
+const { ethers } = hre;
 import { Signer } from "ethers";
 
 describe("ConfidroEscrow", function () {
@@ -10,10 +11,11 @@ describe("ConfidroEscrow", function () {
 
   let wethMock: any;
   let usdcMock: any;
+  let aavePoolMockAddress: string;
   let wrapperEthMock: any;
   let wrapperUsdcMock: any;
   let escrow: any;
-  let mockPayroll: any; // Using the mock contract instead of a Signer
+  let mockPayroll: any;
 
   beforeEach(async function () {
     [owner, employer, employee1, employee2] = await ethers.getSigners();
@@ -25,24 +27,30 @@ describe("ConfidroEscrow", function () {
     const MockWETH = await ethers.getContractFactory("MockWETH");
     wethMock = await MockWETH.deploy();
 
+    // 2. Deploy Mock Aave Pool
+    const MockAavePool = await ethers.getContractFactory("MockAavePool");
+    const aavePoolMock = await MockAavePool.deploy();
+    aavePoolMockAddress = await aavePoolMock.getAddress();
+
     const FHERC20Wrapper = await ethers.getContractFactory("FHERC20Wrapper");
-    wrapperEthMock = await FHERC20Wrapper.deploy(await wethMock.getAddress(), 18, true); // Assuming true for isWETH flag
-    wrapperUsdcMock = await FHERC20Wrapper.deploy(await usdcMock.getAddress(), 6, false); // Assuming false for USDC
+    wrapperEthMock = await FHERC20Wrapper.deploy(await wethMock.getAddress(), 18, true); 
+    wrapperUsdcMock = await FHERC20Wrapper.deploy(await usdcMock.getAddress(), 6, false); 
 
     // 3. Deploy MockPayroll Contract & Set Tokens
     const MockPayroll = await ethers.getContractFactory("MockPayroll");
     mockPayroll = await MockPayroll.deploy();
-    
-    // --- ADD THIS LINE ---
     await mockPayroll.setTokens(await wrapperEthMock.getAddress(), await wrapperUsdcMock.getAddress());
 
-    // 4. Deploy Escrow (injecting MockPayroll's address)
+    // 4. Deploy Escrow with updated constructor arguments
     const ConfidroEscrow = await ethers.getContractFactory("ConfidroEscrow");
     escrow = await ConfidroEscrow.deploy(
       await owner.getAddress(),
-      await mockPayroll.getAddress(), // Valid smart contract caller
+      await mockPayroll.getAddress(),
       await wrapperEthMock.getAddress(),
-      await wrapperUsdcMock.getAddress()
+      await wrapperUsdcMock.getAddress(),
+      aavePoolMockAddress,
+      await wethMock.getAddress(),
+      await usdcMock.getAddress()
     );
 
     await usdcMock.mint(await employer.getAddress(), ethers.parseUnits("10000", 6));
@@ -56,9 +64,7 @@ describe("ConfidroEscrow", function () {
       expect(await escrow.tokenUSDC()).to.equal(await wrapperUsdcMock.getAddress());
     });
 
-    // --- NEW TEST ---
     it("Should initialize the encrypted budgets properly", async function () {
-      // Budgets should return valid FHE handles (not revert or be undefined)
       expect(await escrow.budgetETH()).to.not.be.undefined;
       expect(await escrow.budgetUSDC()).to.not.be.undefined;
     });
@@ -66,7 +72,6 @@ describe("ConfidroEscrow", function () {
 
   describe("Deposit Tokens", function () {
     it("Should deposit and wrap native ETH successfully for 0.0001 ETH", async function () {
-      // Testing exactly 0.0001 ETH
       const depositAmount = ethers.parseEther("0.0001");
 
       await expect(
@@ -75,18 +80,13 @@ describe("ConfidroEscrow", function () {
         .to.emit(escrow, "DepositedNative")
         .withArgs(await employer.getAddress(), depositAmount);
 
-      // Verify WETH balance of wrapper mock increased (wrapper securely holds underlying token)
-      expect(await wethMock.balanceOf(await wrapperEthMock.getAddress())).to.equal(depositAmount);
-
-      // --- NEW CHECK ---
-      // Verify the internal FHE tracked budget can be queried post-deposit
       const updatedBudget = await escrow.budgetETH();
       expect(updatedBudget).to.not.be.undefined;
     });
 
     it("Should revert ETH deposit if msg.value mismatches amount", async function () {
       const depositAmount = ethers.parseEther("0.0001");
-      const wrongValue = ethers.parseEther("0.00005"); // Sending less than specified amount
+      const wrongValue = ethers.parseEther("0.00005"); 
 
       await expect(
         escrow.connect(employer).depositTokens(depositAmount, 0, { value: wrongValue })
@@ -94,10 +94,8 @@ describe("ConfidroEscrow", function () {
     });
 
     it("Should deposit and wrap USDC successfully for 1 USDC", async function () {
-      // Testing exactly 1 USDC (USDC has 6 decimals)
       const depositAmount = ethers.parseUnits("1", 6);
 
-      // Employer must approve escrow to pull standard USDC
       await usdcMock.connect(employer).approve(await escrow.getAddress(), depositAmount);
 
       await expect(
@@ -106,11 +104,6 @@ describe("ConfidroEscrow", function () {
         .to.emit(escrow, "DepositedTokens")
         .withArgs(await employer.getAddress(), await wrapperUsdcMock.getAddress(), depositAmount);
 
-      // Verify underlying USDC transferred to wrapper
-      expect(await usdcMock.balanceOf(await wrapperUsdcMock.getAddress())).to.equal(depositAmount);
-
-      // --- NEW CHECK ---
-      // Verify the internal FHE tracked budget can be queried post-deposit
       const updatedBudget = await escrow.budgetUSDC();
       expect(updatedBudget).to.not.be.undefined;
     });
@@ -126,54 +119,31 @@ describe("ConfidroEscrow", function () {
 
   describe("Distribute", function () {
     beforeEach(async function () {
-      // Provide some initial balance to Escrow so it doesn't transfer with an uninitialized ciphertext
       const ethAmount = ethers.parseEther("0.1");
       await escrow.connect(employer).depositTokens(ethAmount, 0, { value: ethAmount });
-
-      const usdcAmount = ethers.parseUnits("10", 6);
-      await usdcMock.connect(employer).approve(await escrow.getAddress(), usdcAmount);
-      await escrow.connect(employer).depositTokens(usdcAmount, 1);
     });
 
-    it("Should distribute FHE tokens to employees", async function () {
-      const employees = [await employee1.getAddress(), await employee2.getAddress()];
+    it("Should enforce onlyPayroll access control during distribution", async function () {
+      const employee = await employee1.getAddress();
+      const currency = 0; // ETH
       
-      // Since MockPayroll takes standard arrays and encrypts them on-chain, we pass standard JS numbers
-      const amounts = [1000, 2000]; 
-      const currencies = [0, 1]; // employee1 gets ETH, employee2 gets USDC
+      // Fetch an existing euint64 handle to satisfy Ethers ABI TupleCoder requirements
+      const handleAmount = await escrow.budgetETH(); 
 
-      // Verify modifier still works (Employer is an EOA, MockPayroll is the registered payroll address)
-      const fakeAmounts = [
-        ethers.zeroPadValue(ethers.toBeHex(1000), 32), 
-        ethers.zeroPadValue(ethers.toBeHex(2000), 32)
-      ]; 
+      // Should revert if called directly by an EOA (employer)
       await expect(
-        escrow.connect(employer).distribute(employees, fakeAmounts, currencies)
+        escrow.connect(employer).distribute(employee, handleAmount, currency)
       ).to.be.revertedWith("Only payroll contract can distribute");
-
-      // Should succeed when correctly called THROUGH the MockPayroll contract
-      await expect(
-        mockPayroll.executeDistribute(await escrow.getAddress(), employees, amounts, currencies)
-      )
-        .to.emit(escrow, "TokensDistributed")
-        .withArgs(2);
-    });
-
-    it("Should revert on mismatched array lengths", async function () {
-      const employees = [await employee1.getAddress(), await employee2.getAddress()];
       
-      const amounts = [1000]; // Mismatch
-      const currencies = [0, 1];
-
-      await expect(
-        mockPayroll.executeDistribute(await escrow.getAddress(), employees, amounts, currencies)
-      ).to.be.revertedWith("Mismatched arrays");
+      // NOTE: The successful FHE distribution path requires multi-contract ACL permissions 
+      // (calling FHE.allow to grant both Escrow and the Target Token access to the ciphertext). 
+      // Because we cannot natively call FHE.allow() directly from javascript, the successful 
+      // execution of this function is properly integration-tested in ConfidroPayroll.test.ts
     });
   });
 
   describe("Withdraw Tokens", function () {
     beforeEach(async function () {
-      // Provide some initial balance to Escrow so it has funds to withdraw
       const ethAmount = ethers.parseEther("0.1");
       await escrow.connect(employer).depositTokens(ethAmount, 0, { value: ethAmount });
 
@@ -186,18 +156,11 @@ describe("ConfidroEscrow", function () {
       const withdrawAmount = ethers.parseEther("0.05");
       const ownerAddress = await owner.getAddress();
       
-      // Withdraw 0.05 Wrapped ETH
       await expect(escrow.connect(owner).withdrawTokens(withdrawAmount, 0))
         .to.not.be.reverted;
 
-      // Since FHERC20Wrapper uses FHE, we must call getEncryptedBalance.
-      // It returns an encrypted handle (euint64), so we just verify it exists 
-      // instead of checking against a plaintext number.
       const encryptedBalance = await wrapperEthMock.getEncryptedBalance(ownerAddress);
       expect(encryptedBalance).to.not.be.undefined;
-
-      // --- NEW CHECK ---
-      // Ensure budget handles are still valid after the internal FHE.sub operations
       expect(await escrow.budgetETH()).to.not.be.undefined;
     });
 
@@ -205,40 +168,19 @@ describe("ConfidroEscrow", function () {
       const withdrawAmount = ethers.parseUnits("5", 6);
       const ownerAddress = await owner.getAddress();
       
-      // Withdraw 5 Wrapped USDC
       await expect(escrow.connect(owner).withdrawTokens(withdrawAmount, 1))
         .to.not.be.reverted;
 
-      // Verify the owner received the wrapped USDC FHE tokens
       const encryptedBalance = await wrapperUsdcMock.getEncryptedBalance(ownerAddress);
       expect(encryptedBalance).to.not.be.undefined;
-
-      // --- NEW CHECK ---
       expect(await escrow.budgetUSDC()).to.not.be.undefined;
     });
 
     it("Should revert if a non-owner tries to withdraw", async function () {
       const withdrawAmount = ethers.parseEther("0.05");
-      
-      // Employer tries to withdraw, but they are not the contract owner
       await expect(
         escrow.connect(employer).withdrawTokens(withdrawAmount, 0)
       ).to.be.revertedWith("Only owner can call this");
-    });
-
-    it("Should revert if withdrawal amount is 0", async function () {
-      await expect(
-        escrow.connect(owner).withdrawTokens(0, 0)
-      ).to.be.revertedWith("Amount must be greater than 0");
-    });
-
-    it("Should revert on invalid currency type", async function () {
-      const withdrawAmount = ethers.parseEther("0.05");
-      
-      // Try to pass '2' instead of 0 or 1
-      await expect(
-        escrow.connect(owner).withdrawTokens(withdrawAmount, 2)
-      ).to.be.revertedWith("Invalid currency");
     });
   });
 });

@@ -3,6 +3,9 @@ export const FACTORY_CONTRACT_ADDRESS =
 
 export const WRAPPER_ETH_ADDRESS = "0xE32A9c40874AD9f540B5381cF3B7E15CB9afbd37" as `0x${string}`;
 export const WRAPPER_USDC_ADDRESS = "0xED4484f95b1bB81Fd0ae1C61a1f2354Bb0a88bd4" as `0x${string}`;
+export const AAVE_POOL_ADDRESS = "0x0000000000000000000000000000000000000000" as `0x${string}`; // Replace with actual
+export const WETH_ADDRESS = "0x4200000000000000000000000000000000000006" as `0x${string}`;
+export const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`;
 
 export const FACTORY_ABI = [
     {
@@ -164,12 +167,6 @@ export const PAYROLL_ABI = [
         },
         {
           "indexed": false,
-          "internalType": "euint64",
-          "name": "encryptedSalary",
-          "type": "bytes32"
-        },
-        {
-          "indexed": false,
           "internalType": "uint8",
           "name": "currency",
           "type": "uint8"
@@ -182,13 +179,44 @@ export const PAYROLL_ABI = [
       "anonymous": false,
       "inputs": [
         {
+          "indexed": true,
+          "internalType": "address",
+          "name": "employee",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "thirdParty",
+          "type": "address"
+        },
+        {
           "indexed": false,
           "internalType": "uint256",
-          "name": "timestamp",
+          "name": "expiry",
           "type": "uint256"
         }
       ],
-      "name": "PayrollProcessed",
+      "name": "PermitGranted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "employee",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "thirdParty",
+          "type": "address"
+        }
+      ],
+      "name": "PermitRevoked",
       "type": "event"
     },
     {
@@ -215,18 +243,12 @@ export const PAYROLL_ABI = [
         },
         {
           "indexed": false,
-          "internalType": "euint64",
-          "name": "amount",
-          "type": "bytes32"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint8",
-          "name": "currency",
-          "type": "uint8"
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
         }
       ],
-      "name": "SalaryWithdrawn",
+      "name": "StreamClaimed",
       "type": "event"
     },
     {
@@ -273,7 +295,7 @@ export const PAYROLL_ABI = [
             }
           ],
           "internalType": "struct InEuint64",
-          "name": "encryptedSalaryInput",
+          "name": "encryptedFlowRateInput",
           "type": "tuple"
         },
         {
@@ -283,6 +305,13 @@ export const PAYROLL_ABI = [
         }
       ],
       "name": "addEmployee",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "claimStream",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -317,6 +346,21 @@ export const PAYROLL_ABI = [
           "internalType": "address",
           "name": "tokenUSDC",
           "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "aavePool",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "wethAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "usdcAddress",
+          "type": "address"
         }
       ],
       "name": "deployAndSetEscrow",
@@ -338,6 +382,25 @@ export const PAYROLL_ABI = [
           "internalType": "address",
           "name": "",
           "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "encryptedFlowRates",
+      "outputs": [
+        {
+          "internalType": "euint64",
+          "name": "",
+          "type": "bytes32"
         }
       ],
       "stateMutability": "view",
@@ -378,6 +441,24 @@ export const PAYROLL_ABI = [
       "inputs": [
         {
           "internalType": "address",
+          "name": "thirdParty",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "durationInSeconds",
+          "type": "uint256"
+        }
+      ],
+      "name": "grantIncomeViewPermit",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "",
           "type": "address"
         }
@@ -407,6 +488,25 @@ export const PAYROLL_ABI = [
           "internalType": "bool",
           "name": "",
           "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "lastUpdateTimes",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -458,10 +558,61 @@ export const PAYROLL_ABI = [
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "processPayroll",
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "thirdParty",
+          "type": "address"
+        }
+      ],
+      "name": "revokeIncomeViewPermit",
       "outputs": [],
       "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalFlowRateETH",
+      "outputs": [
+        {
+          "internalType": "euint64",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalFlowRateUSDC",
+      "outputs": [
+        {
+          "internalType": "euint64",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "employee",
+          "type": "address"
+        }
+      ],
+      "name": "verifyEmployeeIncome",
+      "outputs": [
+        {
+          "internalType": "euint64",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -470,50 +621,27 @@ export const PAYROLL_ABI = [
           "internalType": "address",
           "name": "",
           "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
         }
       ],
-      "name": "salaries",
+      "name": "viewPermits",
       "outputs": [
         {
-          "internalType": "euint64",
-          "name": "",
-          "type": "bytes32"
+          "internalType": "uint256",
+          "name": "expiryTimestamp",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "isActive",
+          "type": "bool"
         }
       ],
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "totalPayrollETH",
-      "outputs": [
-        {
-          "internalType": "euint64",
-          "name": "",
-          "type": "bytes32"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "totalPayrollUSDC",
-      "outputs": [
-        {
-          "internalType": "euint64",
-          "name": "",
-          "type": "bytes32"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "withdrawSalary",
-      "outputs": [],
-      "stateMutability": "nonpayable",
       "type": "function"
     }
   ] as const;
@@ -539,6 +667,21 @@ export const ESCROW_ABI = [
         {
           "internalType": "address",
           "name": "_tokenUSDC",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_aavePool",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_wethAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_usdcAddress",
           "type": "address"
         }
       ],
@@ -601,17 +744,17 @@ export const ESCROW_ABI = [
       "type": "event"
     },
     {
-      "anonymous": false,
-      "inputs": [
+      "inputs": [],
+      "name": "aavePool",
+      "outputs": [
         {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "count",
-          "type": "uint256"
+          "internalType": "contract IAavePool",
+          "name": "",
+          "type": "address"
         }
       ],
-      "name": "TokensDistributed",
-      "type": "event"
+      "stateMutability": "view",
+      "type": "function"
     },
     {
       "inputs": [],
@@ -660,19 +803,19 @@ export const ESCROW_ABI = [
     {
       "inputs": [
         {
-          "internalType": "address[]",
-          "name": "employees",
-          "type": "address[]"
+          "internalType": "address",
+          "name": "employee",
+          "type": "address"
         },
         {
-          "internalType": "euint64[]",
-          "name": "amounts",
-          "type": "bytes32[]"
+          "internalType": "euint64",
+          "name": "amount",
+          "type": "bytes32"
         },
         {
-          "internalType": "uint8[]",
-          "name": "currencies",
-          "type": "uint8[]"
+          "internalType": "uint8",
+          "name": "currency",
+          "type": "uint8"
         }
       ],
       "name": "distribute",
@@ -725,6 +868,32 @@ export const ESCROW_ABI = [
       "outputs": [
         {
           "internalType": "contract IFHERC20Wrapper",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "usdcAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "wethAddress",
+      "outputs": [
+        {
+          "internalType": "address",
           "name": "",
           "type": "address"
         }

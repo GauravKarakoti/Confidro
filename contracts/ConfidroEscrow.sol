@@ -14,22 +14,28 @@ interface IWETH {
     function withdraw(uint wad) external;
 }
 
-// Updated interface to include wrapping logic and underlying asset fetch
+// Aave V3 Pool Interface
+interface IAavePool {
+    function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
+}
+
 interface IFHERC20Wrapper {
     function transfer(address to, euint64 amount) external;
-    function transferFrom(address from, address to, uint256 amount) external;
-    function transfer(address to, uint256 amount) external;
-    // Wrapper specific functions
+    function transfer(address to, uint256 amount) external; // [FIX ADDED] Add the uint256 overload back
     function wrap(uint256 amount) external;
-    function unwrap(uint256 amount) external;
-    function underlying() external view returns (address);
+    function underlying() external view returns (address); // This will return the aToken address
 }
 
 contract ConfidroEscrow {
     address public owner;
     address public payrollContract;
+    IAavePool public aavePool;
 
-    // FHERC20 tokens used for confidential payroll
+    // Base tokens before Aave routing
+    address public wethAddress;
+    address public usdcAddress;
+
+    // FHERC20 tokens used for confidential payroll (Wrapping aWETH and aUSDC)
     IFHERC20Wrapper public tokenETH;  
     IFHERC20Wrapper public tokenUSDC;
     
@@ -38,7 +44,6 @@ contract ConfidroEscrow {
 
     event DepositedNative(address indexed sender, uint256 amount);
     event DepositedTokens(address indexed sender, address token, uint256 amount);
-    event TokensDistributed(uint256 count);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this");
@@ -50,28 +55,33 @@ contract ConfidroEscrow {
         _;
     }
 
-    constructor(address _owner, address _payrollContract, address _tokenETH, address _tokenUSDC) {
-        require(_owner != address(0), "Invalid owner");
-        require(_payrollContract != address(0), "Invalid payroll contract");
-        require(_tokenETH != address(0), "Invalid ETH token");
-        require(_tokenUSDC != address(0), "Invalid USDC token");
-
+    constructor(
+        address _owner, 
+        address _payrollContract, 
+        address _tokenETH, 
+        address _tokenUSDC, 
+        address _aavePool,
+        address _wethAddress,
+        address _usdcAddress
+    ) {
         owner = _owner;
         payrollContract = _payrollContract;
         tokenETH = IFHERC20Wrapper(_tokenETH);
         tokenUSDC = IFHERC20Wrapper(_tokenUSDC);
+        aavePool = IAavePool(_aavePool);
+        wethAddress = _wethAddress;
+        usdcAddress = _usdcAddress;
         
         budgetETH = FHE.asEuint64(0);
-        FHE.allowThis(budgetETH); // [FIX ADDED] Good practice to allow initialization
+        FHE.allowThis(budgetETH);
         FHE.allow(budgetETH, _owner);
         
         budgetUSDC = FHE.asEuint64(0);
-        FHE.allowThis(budgetUSDC); // [FIX ADDED] 
+        FHE.allowThis(budgetUSDC); 
         FHE.allow(budgetUSDC, _owner);
     }
 
-    // Currency: 0 for ETH, 1 for USDC
-    // Now marked payable to accept native Base Sepolia ETH
+    // YIELD GENERATION + MULTICURRENCY
     function depositTokens(uint256 amount, uint8 currency) external payable {
         require(amount > 0, "Amount must be greater than 0");
         require(currency == 0 || currency == 1, "Invalid currency");
@@ -81,16 +91,19 @@ contract ConfidroEscrow {
             require(msg.value == amount, "Incorrect ETH value sent");
 
             // 2. Wrap Native ETH -> WETH
-            address weth = tokenETH.underlying();
-            IWETH(weth).deposit{value: amount}();
+            IWETH(wethAddress).deposit{value: amount}();
 
-            // 3. Approve FHERC20Wrapper to spend WETH
-            IERC20(weth).approve(address(tokenETH), amount);
+            // 3. Supply WETH to Aave to mint aWETH (Yield generation begins)
+            IERC20(wethAddress).approve(address(aavePool), amount);
+            aavePool.supply(wethAddress, amount, address(this), 0);
 
+            // 4. Wrap the yield-bearing aWETH into encrypted FHERC20 token
+            address aWETH = tokenETH.underlying();
+            IERC20(aWETH).approve(address(tokenETH), amount);
             tokenETH.wrap(amount);
-            budgetETH = FHE.add(budgetETH, FHE.asEuint64(amount));
             
-            FHE.allowThis(budgetETH); // [FIX ADDED] Contract needs permission to compute next time
+            budgetETH = FHE.add(budgetETH, FHE.asEuint64(amount));
+            FHE.allowThis(budgetETH); 
             FHE.allow(budgetETH, owner);
 
             emit DepositedNative(msg.sender, amount);
@@ -99,18 +112,20 @@ contract ConfidroEscrow {
             // 1. Verify no native ETH was accidentally sent with a USDC transaction
             require(msg.value == 0, "Native ETH sent with USDC deposit");
 
-            address standardUSDC = tokenUSDC.underlying();
-
             // 2. Pull standard USDC from the employer to the Escrow
-            IERC20(standardUSDC).transferFrom(msg.sender, address(this), amount);
+            IERC20(usdcAddress).transferFrom(msg.sender, address(this), amount);
 
-            // 3. Approve FHERC20Wrapper to spend standard USDC
-            IERC20(standardUSDC).approve(address(tokenUSDC), amount);
+            // 3. Supply USDC to Aave to mint aUSDC
+            IERC20(usdcAddress).approve(address(aavePool), amount);
+            aavePool.supply(usdcAddress, amount, address(this), 0);
 
+            // 4. Wrap the yield-bearing aUSDC into encrypted FHERC20 token
+            address aUSDC = tokenUSDC.underlying();
+            IERC20(aUSDC).approve(address(tokenUSDC), amount);
             tokenUSDC.wrap(amount);
-            budgetUSDC = FHE.add(budgetUSDC, FHE.asEuint64(amount));
             
-            FHE.allowThis(budgetUSDC); // [FIX ADDED] Contract needs permission to compute next time
+            budgetUSDC = FHE.add(budgetUSDC, FHE.asEuint64(amount));
+            FHE.allowThis(budgetUSDC); 
             FHE.allow(budgetUSDC, owner);
 
             emit DepositedTokens(msg.sender, address(tokenUSDC), amount);
@@ -128,26 +143,20 @@ contract ConfidroEscrow {
         }
     }
 
-    // FHE Distribution: Called by ConfidroPayroll during processPayroll()
-    function distribute(address[] memory employees, euint64[] memory amounts, uint8[] memory currencies) external onlyPayroll {
-        require(employees.length == amounts.length && amounts.length == currencies.length, "Mismatched arrays");
-
-        for (uint i = 0; i < employees.length; i++) {
-            if (currencies[i] == 0) {
-                tokenETH.transfer(employees[i], amounts[i]);
-                budgetETH = FHE.sub(budgetETH, amounts[i]);
-            } else {
-                tokenUSDC.transfer(employees[i], amounts[i]);
-                budgetUSDC = FHE.sub(budgetUSDC, amounts[i]);
-            }
+    // Called dynamically by ConfidroPayroll's claimStream()
+    function distribute(address employee, euint64 amount, uint8 currency) external onlyPayroll {
+        if (currency == 0) {
+            tokenETH.transfer(employee, amount);
+            budgetETH = FHE.sub(budgetETH, amount);
+            
+            FHE.allowThis(budgetETH);
+            FHE.allow(budgetETH, owner);
+        } else {
+            tokenUSDC.transfer(employee, amount);
+            budgetUSDC = FHE.sub(budgetUSDC, amount);
+            
+            FHE.allowThis(budgetUSDC);
+            FHE.allow(budgetUSDC, owner);
         }
-        
-        // Grant access to the newly computed ciphertext budgets
-        FHE.allowThis(budgetETH);
-        FHE.allow(budgetETH, owner);
-        FHE.allowThis(budgetUSDC);
-        FHE.allow(budgetUSDC, owner);
-
-        emit TokensDistributed(employees.length);
     }
 }

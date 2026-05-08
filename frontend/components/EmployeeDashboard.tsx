@@ -24,80 +24,41 @@ import {
   ArrowLeft,
   ChevronRight,
   Plus,
-  Unlock
+  Unlock,
+  Zap,
+  FileKey
 } from "lucide-react";
-// Add WRAPPER_ETH_ADDRESS to your imports
 import { PAYROLL_ABI, WRAPPER_ABI, WRAPPER_USDC_ADDRESS, WRAPPER_ETH_ADDRESS } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
+import { parseUnits } from "viem";
 
-// ──────────────────────────────────────────────
-// Employee row
-// ──────────────────────────────────────────────
-function EmployeeRow({
-  address,
-  index,
-  isYou,
-}: {
-  address: string;
-  index: number;
-  isYou: boolean;
-}) {
+function EmployeeRow({ address, index, isYou }: { address: string; index: number; isYou: boolean }) {
   const short = `${address.slice(0, 6)}...${address.slice(-4)}`;
-
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.06 }}
-      className="flex items-center justify-between py-3 border-b border-slate-800/50 last:border-0"
-    >
+    <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.06 }} className="flex items-center justify-between py-3 border-b border-slate-800/50 last:border-0">
       <div className="flex items-center gap-3">
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-          style={{
-            background: `hsl(${(parseInt(address.slice(2, 8), 16) % 360)}, 60%, 25%)`,
-            border: isYou
-              ? "1.5px solid rgba(0,255,157,0.5)"
-              : "1.5px solid rgba(90,41,228,0.25)",
-            color: isYou ? "#00FF9D" : "#A080FF",
-          }}
-        >
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: `hsl(${(parseInt(address.slice(2, 8), 16) % 360)}, 60%, 25%)`, border: isYou ? "1.5px solid rgba(0,255,157,0.5)" : "1.5px solid rgba(90,41,228,0.25)", color: isYou ? "#00FF9D" : "#A080FF" }}>
           {address.slice(2, 4).toUpperCase()}
         </div>
         <div>
-          <div className="text-sm font-mono text-slate-300 flex items-center gap-2">
-            {short}
-            {isYou && (
-              <span className="badge badge-green text-[10px]">
-                <BadgeCheck size={9} />
-                You
-              </span>
-            )}
-          </div>
+          <div className="text-sm font-mono text-slate-300 flex items-center gap-2">{short} {isYou && <span className="badge badge-green text-[10px]"><BadgeCheck size={9} /> You</span>}</div>
           <div className="text-xs text-slate-600">Registered employee</div>
         </div>
       </div>
-      <div className="flex items-center gap-1.5 text-xs text-slate-500">
-        <CheckCircle2 size={12} className="text-emerald-500" />
-        Active
-      </div>
+      <div className="flex items-center gap-1.5 text-xs text-slate-500"><CheckCircle2 size={12} className="text-emerald-500" /> Active</div>
     </motion.div>
   );
 }
 
-function WithdrawCard({
-  connectedAddress,
-  isRegistered,
-}: {
-  connectedAddress?: string;
-  isRegistered: boolean;
-}) {
+// ──────────────────────────────────────────────
+// 1. Withdraw/Unwrap Card (Unchanged logic)
+// ──────────────────────────────────────────────
+function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: string; isRegistered: boolean }) {
   const [currency, setCurrency] = useState<"USDC" | "ETH">("USDC");
   const activeAddress = currency === "USDC" ? WRAPPER_USDC_ADDRESS : WRAPPER_ETH_ADDRESS;
 
   const [status, setStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined);
-  
   const [showBalance, setShowBalance] = useState(false);
   const [decryptedBalance, setDecryptedBalance] = useState<number | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
@@ -105,104 +66,50 @@ function WithdrawCard({
 
   const { writeContractAsync } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
-
-  // Add the required hooks for CoFHE client connection
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { address: userAddress, chainId } = useAccount();
 
-  // Reset UI states when the user toggles the currency
-  useEffect(() => {
-    setShowBalance(false);
-    setDecryptedBalance(null);
-    setUnwrapAmount("");
-    setStatus("idle");
-  }, [currency]);
+  useEffect(() => { setShowBalance(false); setDecryptedBalance(null); setUnwrapAmount(""); setStatus("idle"); }, [currency]);
 
-  // Read the user's Encrypted Wrapper Token Balance for the selected currency
   const { data: encryptedBalance, refetch: refetchBalance } = useReadContract({
-    address: activeAddress,
-    abi: WRAPPER_ABI,
-    functionName: "getEncryptedBalance",
-    args: connectedAddress ? [connectedAddress as `0x${string}`] : undefined,
-    query: {
-      enabled: !!connectedAddress && isRegistered,
-    },
+    address: activeAddress, abi: WRAPPER_ABI, functionName: "getEncryptedBalance", args: connectedAddress ? [connectedAddress as `0x${string}`] : undefined,
+    query: { enabled: !!connectedAddress && isRegistered },
   });
 
   const handleRevealBalance = async () => {
-    if (showBalance) {
-      setShowBalance(false);
-      setDecryptedBalance(null);
-      return;
-    }
-
+    if (showBalance) { setShowBalance(false); setDecryptedBalance(null); return; }
     try {
       setIsDecrypting(true);
-
-      if (!encryptedBalance || BigInt(encryptedBalance as string) === BigInt(0)) {
-        setDecryptedBalance(0);
-        setShowBalance(true);
-        return;
-      }
-
-      if (!publicClient || !walletClient || !userAddress || !chainId) {
-        throw new Error("Please connect your wallet first.");
-      }
+      if (!encryptedBalance || BigInt(encryptedBalance as string) === BigInt(0)) { setDecryptedBalance(0); setShowBalance(true); return; }
+      if (!publicClient || !walletClient || !userAddress || !chainId) throw new Error("Wallet not connected.");
 
       const cofheWeb = await import("@cofhe/sdk/web");
-      // @ts-ignore
       const cofheCore = await import("@cofhe/sdk");
-      
       const { createCofheConfig, createCofheClient } = cofheWeb;
       const { FheTypes } = cofheCore;
 
-      if (!encryptedBalance) {
-        throw new Error("No encrypted balance found or zero balance.");
-      }
-
-      const config = createCofheConfig({ 
-        environment: "web",
-        supportedChains: [baseSepolia]
-      });
+      const config = createCofheConfig({ environment: "web", supportedChains: [baseSepolia] });
       const client = await createCofheClient(config);
-      
-      // FIX 1: Connect the client before attempting to use permits
       await client.connect(publicClient, walletClient);
 
-      // FIX 2: Explicitly fetch the permit to allow retry logic
       let permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
       let result;
 
       try {
-        result = await client
-          .decryptForView(BigInt(encryptedBalance as string), FheTypes.Uint64)
-          .withPermit(permit)
-          .execute();
+        result = await client.decryptForView(BigInt(encryptedBalance as string), FheTypes.Uint64).withPermit(permit).execute();
       } catch (err: any) {
-        // Retry logic for expired permits
         if (err.message?.toLowerCase().includes("expired")) {
             client.permits.removeActivePermit(chainId, userAddress);
             permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
-            
-            result = await client
-              .decryptForView(BigInt(encryptedBalance as string), FheTypes.Uint64)
-              .withPermit(permit)
-              .execute();
-        } else {
-            throw err;
-        }
+            result = await client.decryptForView(BigInt(encryptedBalance as string), FheTypes.Uint64).withPermit(permit).execute();
+        } else { throw err; }
       }
         
-      // Dynamic decimal formatting based on token type
       const decimals = currency === "USDC" ? 1e6 : 1e18;
       setDecryptedBalance(Number(result) / decimals); 
       setShowBalance(true);
-    } catch (err) {
-      console.error("Decryption failed:", err);
-    } finally {
-      setIsDecrypting(false);
-    }
+    } catch (err) { console.error(err); } finally { setIsDecrypting(false); }
   };
 
   const handleUnwrap = async () => {
@@ -210,34 +117,17 @@ function WithdrawCard({
     try {
       setStatus("pending");
       
-      // Dynamic conversion back to BigInt standard depending on the asset
-      const decimals = currency === "USDC" ? 1e6 : 1e18;
-      const amountToUnwrap = BigInt(Math.floor(Number(unwrapAmount) * decimals));
+      // Updated Logic
+      const decimals = currency === "USDC" ? 6 : 18;
+      const amountToUnwrap = parseUnits(unwrapAmount, decimals);
 
       const hash = await writeContractAsync({
-        address: activeAddress,
-        abi: WRAPPER_ABI,
-        functionName: "unwrap",
-        args: [amountToUnwrap],
-        gas: BigInt(8000000)
+        address: activeAddress, abi: WRAPPER_ABI, functionName: "unwrap", args: [amountToUnwrap], gas: BigInt(8000000)
       });
       
-      setTxHash(hash);
-      setStatus("success");
-      setUnwrapAmount("");
-      
-      // Hide balance and refetch encrypted state after unwrap
-      setShowBalance(false);
-      setDecryptedBalance(null);
-      setTimeout(() => {
-        setStatus("idle");
-        refetchBalance();
-      }, 5000);
-    } catch (err) {
-      setStatus("error");
-      console.error(err);
-      setTimeout(() => setStatus("idle"), 4000);
-    }
+      setTxHash(hash); setStatus("success"); setUnwrapAmount(""); setShowBalance(false); setDecryptedBalance(null);
+      setTimeout(() => { setStatus("idle"); refetchBalance(); }, 5000);
+    } catch (err) { setStatus("error"); console.error(err); setTimeout(() => setStatus("idle"), 4000); }
   };
 
   const isLoading = status === "pending" || isConfirming;
@@ -255,37 +145,19 @@ function WithdrawCard({
           </div>
         </div>
 
-        {/* Currency Toggle */}
         <div className="flex bg-slate-800/50 rounded-lg p-1 border border-slate-700/50">
-          <button 
-            onClick={() => setCurrency("USDC")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${currency === "USDC" ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400 hover:text-slate-300"}`}
-          >
-            USDC
-          </button>
-          <button 
-            onClick={() => setCurrency("ETH")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${currency === "ETH" ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400 hover:text-slate-300"}`}
-          >
-            ETH
-          </button>
+          <button onClick={() => setCurrency("USDC")} className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${currency === "USDC" ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400 hover:text-slate-300"}`}>USDC</button>
+          <button onClick={() => setCurrency("ETH")} className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${currency === "ETH" ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400 hover:text-slate-300"}`}>ETH</button>
         </div>
       </div>
 
-      {/* Balance preview */}
       <div className="rounded-xl p-4 mb-4 flex items-center justify-between" style={{ background: "rgba(0,255,157,0.04)", border: "1px solid rgba(0,255,157,0.1)" }}>
         <div className="w-full">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">FHE Encrypted Balance ({currency})</span>
             {isRegistered && (
               <button onClick={handleRevealBalance} disabled={isDecrypting || !encryptedBalance} className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50">
-                {isDecrypting ? (
-                  <><Loader2 size={12} className="animate-spin" /> Decrypting...</>
-                ) : showBalance ? (
-                  <><EyeOff size={12} /> Hide</>
-                ) : (
-                  <><Eye size={12} /> Reveal</>
-                )}
+                {isDecrypting ? <><Loader2 size={12} className="animate-spin" /> Decrypting...</> : showBalance ? <><EyeOff size={12} /> Hide</> : <><Eye size={12} /> Reveal</>}
               </button>
             )}
           </div>
@@ -293,16 +165,11 @@ function WithdrawCard({
           <AnimatePresence mode="wait">
             {showBalance && decryptedBalance !== null ? (
               <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>
-                  {currency === "USDC" ? "$" : "Ξ"}
-                  {decryptedBalance}
-                </span>
+                <span className="text-3xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>{currency === "USDC" ? "$" : "Ξ"}{decryptedBalance}</span>
                 <span className="text-sm text-slate-500">FHE-{currency}</span>
               </motion.div>
             ) : (
-              <motion.div key="hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-3xl font-bold text-emerald-400 tracking-widest" style={{ fontFamily: "var(--font-display)", marginTop: "-4px" }}>
-                ****
-              </motion.div>
+              <motion.div key="hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-3xl font-bold text-emerald-400 tracking-widest" style={{ fontFamily: "var(--font-display)", marginTop: "-4px" }}>****</motion.div>
             )}
           </AnimatePresence>
         </div>
@@ -310,35 +177,19 @@ function WithdrawCard({
 
       <div className="flex items-center gap-2 text-xs text-slate-500 mb-5 bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
         <Clock size={16} className="text-emerald-500 shrink-0" /> 
-        <span>Your salary has been pushed directly to your wallet as encrypted tokens. <strong>Unwrap them below</strong> to convert them back into public Base Sepolia {currency}.</span>
+        <span>Claimed salary is in your FHE wallet. <strong>Unwrap them below</strong> to convert them back into public Base Sepolia {currency}.</span>
       </div>
 
       <AnimatePresence>
-        {status === "success" && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5 mb-3">
-            <CheckCircle2 size={14} /> Unwrap successful! Check your public wallet.
-          </motion.div>
-        )}
-        {status === "error" && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5 mb-3">
-            <AlertCircle size={14} /> Transaction failed. Please try again.
-          </motion.div>
-        )}
+        {status === "success" && <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5 mb-3"><CheckCircle2 size={14} /> Unwrap successful!</motion.div>}
+        {status === "error" && <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5 mb-3"><AlertCircle size={14} /> Transaction failed.</motion.div>}
       </AnimatePresence>
 
       <div className="space-y-3">
-        {/* Unwrap to Public Wallet */}
         <div className="pt-2">
           <label className="block text-xs font-medium text-slate-400 mb-2">Unwrap to Public Base Sepolia {currency}</label>
           <div className="flex gap-2">
-            <input 
-              type="number" 
-              placeholder={`Amount to Unwrap`} 
-              className="input-field flex-1"
-              value={unwrapAmount}
-              onChange={(e) => setUnwrapAmount(e.target.value)}
-              disabled={isLoading}
-            />
+            <input type="number" placeholder={`Amount to Unwrap`} className="input-field flex-1" value={unwrapAmount} onChange={(e) => setUnwrapAmount(e.target.value)} disabled={isLoading} />
             <button onClick={handleUnwrap} disabled={isLoading || !unwrapAmount} className="btn-green">
               {isLoading ? <Loader2 size={16} className="animate-spin" /> : <><Unlock size={14} /> Unwrap</>}
             </button>
@@ -350,33 +201,74 @@ function WithdrawCard({
 }
 
 // ──────────────────────────────────────────────
-// Active Organization View
+// 2. Active Organization Dashboard (With Streaming & Permits)
 // ──────────────────────────────────────────────
-function ActiveOrganizationDashboard({ 
-  contractAddress, 
-  onBack 
-}: { 
-  contractAddress: `0x${string}`, 
-  onBack: () => void 
-}) {
+function ActiveOrganizationDashboard({ contractAddress, onBack }: { contractAddress: `0x${string}`, onBack: () => void }) {
   const { address: connectedAddress } = useAccount();
+  const { writeContractAsync } = useWriteContract();
 
-  const { data: employees, isLoading } = useReadContract({
-    address: contractAddress,
-    abi: PAYROLL_ABI,
-    functionName: "getEmployees",
-  });
+  const [permitAddress, setPermitAddress] = useState("");
+  const [permitDays, setPermitDays] = useState("1");
+  const [isPermitting, setIsPermitting] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
 
+  const { data: employees, isLoading } = useReadContract({ address: contractAddress, abi: PAYROLL_ABI, functionName: "getEmployees" });
   const employeeList = (employees as `0x${string}`[] | undefined) ?? [];
-  const isRegistered = connectedAddress
-    ? employeeList.map((a) => a.toLowerCase()).includes(connectedAddress.toLowerCase())
-    : false;
+  const isRegistered = connectedAddress ? employeeList.map((a) => a.toLowerCase()).includes(connectedAddress.toLowerCase()) : false;
+
+  const handleClaimStream = async () => {
+    try {
+      setIsClaiming(true);
+      await writeContractAsync({
+        address: contractAddress, abi: PAYROLL_ABI, functionName: "claimStream", gas: BigInt(8000000)
+      });
+      alert("Successfully claimed accrued stream into your encrypted wallet!");
+    } catch (err) { console.error(err); } finally { setIsClaiming(false); }
+  };
+
+  const handleGrantPermit = async () => {
+    if (!permitAddress || !permitDays) return;
+    try {
+      setIsPermitting(true);
+      const seconds = parseInt(permitDays) * 86400; // Convert days to seconds
+      await writeContractAsync({
+        address: contractAddress, abi: PAYROLL_ABI, functionName: "grantIncomeViewPermit", args: [permitAddress as `0x${string}`, BigInt(seconds)]
+      });
+      alert(`Permit granted to ${permitAddress.slice(0,6)} for ${permitDays} days.`);
+      setPermitAddress("");
+    } catch (err) { console.error(err); } finally { setIsPermitting(false); }
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-      <button onClick={onBack} className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors mb-6">
-        <ArrowLeft size={16} /> Back to my organizations
-      </button>
+      <button onClick={onBack} className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors mb-6"><ArrowLeft size={16} /> Back to my organizations</button>
+
+      {/* NEW: Streaming Controls & Income Verifier */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="glass rounded-xl p-5 border border-emerald-500/20 bg-emerald-500/5">
+          <div className="flex items-center gap-3 mb-2">
+            <Zap size={20} className="text-emerald-400" />
+            <h3 className="font-bold text-white">Live Stream Claim</h3>
+          </div>
+          <p className="text-xs text-slate-400 mb-4">Your salary accrues every second and generates DeFi yield in Escrow. Claim your accrued balance into your FHE wallet at any time.</p>
+          <button onClick={handleClaimStream} disabled={isClaiming || !isRegistered} className="btn-green w-full py-2.5">
+            {isClaiming ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Claim Accrued Salary"}
+          </button>
+        </div>
+
+        <div className="glass rounded-xl p-5 border border-violet-500/20 bg-violet-500/5">
+          <div className="flex items-center gap-3 mb-2">
+            <FileKey size={20} className="text-violet-400" />
+            <h3 className="font-bold text-white">Income Verification</h3>
+          </div>
+          <p className="text-xs text-slate-400 mb-3">Grant a landlord or bank temporary access to view your encrypted stream rate without revealing your total wallet history.</p>
+          <div className="flex gap-2">
+             <input type="text" placeholder="0x..." className="input-field w-10 h-9 text-xs" value={permitAddress} onChange={(e)=>setPermitAddress(e.target.value)} />
+             <input type="number" placeholder="Days" className="input-field w-10 h-9 text-xs" value={permitDays} onChange={(e)=>setPermitDays(e.target.value)} />
+             <button onClick={handleGrantPermit} disabled={isPermitting || !permitAddress} className="btn-primary h-9 px-3 text-xs">Grant</button>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-3 glass rounded-2xl p-6">
@@ -394,20 +286,14 @@ function ActiveOrganizationDashboard({
           </div>
 
           {isLoading ? (
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => <div key={i} className="shimmer h-14 rounded-lg" />)}
-            </div>
+            <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="shimmer h-14 rounded-lg" />)}</div>
           ) : employeeList.length === 0 ? (
             <div className="text-center py-12 text-slate-600">
               <Users size={40} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">No employees registered yet.</p>
             </div>
           ) : (
-            <div>
-              {employeeList.map((addr, i) => (
-                <EmployeeRow key={addr} address={addr} index={i} isYou={connectedAddress?.toLowerCase() === addr.toLowerCase()} />
-              ))}
-            </div>
+            <div>{employeeList.map((addr, i) => <EmployeeRow key={addr} address={addr} index={i} isYou={connectedAddress?.toLowerCase() === addr.toLowerCase()} />)}</div>
           )}
         </div>
 
@@ -420,7 +306,7 @@ function ActiveOrganizationDashboard({
 }
 
 // ──────────────────────────────────────────────
-// Main export - Organization Selector
+// 3. Organization Selector (Main Export)
 // ──────────────────────────────────────────────
 export default function EmployeeDashboard() {
   const { address: connectedAddress } = useAccount();
@@ -435,9 +321,7 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     if (connectedAddress) {
       const saved = localStorage.getItem(`confidro_orgs_${connectedAddress}`);
-      if (saved) {
-        setJoinedOrgs(JSON.parse(saved));
-      }
+      if (saved) setJoinedOrgs(JSON.parse(saved));
     }
   }, [connectedAddress]);
 
@@ -449,38 +333,18 @@ export default function EmployeeDashboard() {
   };
 
   const handleConnectOrg = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg("");
-
-    if (!inputAddress.startsWith("0x") || inputAddress.length !== 42) {
-      setErrorMsg("Please enter a valid smart contract address (0x...)");
-      return;
-    }
+    e.preventDefault(); setErrorMsg("");
+    if (!inputAddress.startsWith("0x") || inputAddress.length !== 42) { setErrorMsg("Please enter a valid smart contract address (0x...)"); return; }
 
     try {
       setIsSearching(true);
-      
-      const employeeList = await publicClient?.readContract({
-        address: inputAddress as `0x${string}`,
-        abi: PAYROLL_ABI,
-        functionName: "getEmployees",
-      }) as string[];
-
+      const employeeList = await publicClient?.readContract({ address: inputAddress as `0x${string}`, abi: PAYROLL_ABI, functionName: "getEmployees" }) as string[];
       const isEmployee = employeeList.map(a => a.toLowerCase()).includes(connectedAddress?.toLowerCase() || "");
 
       if (isEmployee) {
-        saveOrg(inputAddress as `0x${string}`);
-        setActiveOrg(inputAddress as `0x${string}`);
-        setInputAddress(""); 
-      } else {
-        setErrorMsg("Access Denied: You are not registered as an employee in this organization.");
-      }
-    } catch (err) {
-      console.error(err);
-      setErrorMsg("Error connecting. Is this a valid Confidro Protocol contract?");
-    } finally {
-      setIsSearching(false);
-    }
+        saveOrg(inputAddress as `0x${string}`); setActiveOrg(inputAddress as `0x${string}`); setInputAddress(""); 
+      } else { setErrorMsg("Access Denied: You are not registered as an employee in this organization."); }
+    } catch (err) { console.error(err); setErrorMsg("Error connecting. Is this a valid Confidro Protocol contract?"); } finally { setIsSearching(false); }
   };
 
   if (activeOrg) {
@@ -503,59 +367,29 @@ export default function EmployeeDashboard() {
         {joinedOrgs.length > 0 ? (
           <div className="space-y-3 mb-8">
             {joinedOrgs.map((org) => (
-              <button
-                key={org}
-                onClick={() => setActiveOrg(org)}
-                className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-700/50 hover:border-emerald-500/50 bg-slate-800/30 hover:bg-slate-800/50 transition-all group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-mono text-sm text-slate-300">{org.slice(0, 8)}...{org.slice(-6)}</span>
-                </div>
+              <button key={org} onClick={() => setActiveOrg(org)} className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-700/50 hover:border-emerald-500/50 bg-slate-800/30 hover:bg-slate-800/50 transition-all group">
+                <div className="flex items-center gap-3"><div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /><span className="font-mono text-sm text-slate-300">{org.slice(0, 8)}...{org.slice(-6)}</span></div>
                 <ChevronRight size={18} className="text-slate-500 group-hover:text-emerald-400 transition-colors" />
               </button>
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 mb-8 border border-dashed border-slate-700 rounded-xl bg-slate-800/10">
-            <p className="text-sm text-slate-500">You are not in any organization yet.</p>
-          </div>
+          <div className="text-center py-8 mb-8 border border-dashed border-slate-700 rounded-xl bg-slate-800/10"><p className="text-sm text-slate-500">You are not in any organization yet.</p></div>
         )}
 
         <hr className="border-slate-800 mb-6" />
 
         <form onSubmit={handleConnectOrg}>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            Join New Organization
-          </label>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Join New Organization</label>
           <p className="text-xs text-slate-500 mb-4">Paste the payroll contract address provided by your employer.</p>
           
           <div className="flex gap-3">
-            <input
-              type="text"
-              placeholder="0x..."
-              value={inputAddress}
-              onChange={(e) => setInputAddress(e.target.value)}
-              className="input-field flex-1"
-              disabled={isSearching}
-            />
-            <button 
-              type="submit" 
-              disabled={!inputAddress || isSearching}
-              className="btn-primary whitespace-nowrap px-6"
-            >
-              {isSearching ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-              Connect
-            </button>
+            <input type="text" placeholder="0x..." value={inputAddress} onChange={(e) => setInputAddress(e.target.value)} className="input-field flex-1" disabled={isSearching} />
+            <button type="submit" disabled={!inputAddress || isSearching} className="btn-primary whitespace-nowrap px-6">{isSearching ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Connect</button>
           </div>
 
           <AnimatePresence>
-            {errorMsg && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-start gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mt-4">
-                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                <span>{errorMsg}</span>
-              </motion.div>
-            )}
+            {errorMsg && <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-start gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mt-4"><AlertCircle size={16} className="flex-shrink-0 mt-0.5" /><span>{errorMsg}</span></motion.div>}
           </AnimatePresence>
         </form>
       </div>
