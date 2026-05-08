@@ -26,7 +26,9 @@ import {
   Plus,
   Unlock,
   Zap,
-  FileKey
+  FileKey,
+  Copy,
+  Check
 } from "lucide-react";
 import { PAYROLL_ABI, WRAPPER_ABI, WRAPPER_USDC_ADDRESS, WRAPPER_ETH_ADDRESS } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
@@ -51,7 +53,7 @@ function EmployeeRow({ address, index, isYou }: { address: string; index: number
 }
 
 // ──────────────────────────────────────────────
-// 1. Withdraw/Unwrap Card (Unchanged logic)
+// 1. Withdraw/Unwrap Card
 // ──────────────────────────────────────────────
 function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: string; isRegistered: boolean }) {
   const [currency, setCurrency] = useState<"USDC" | "ETH">("USDC");
@@ -117,7 +119,6 @@ function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: s
     try {
       setStatus("pending");
       
-      // Updated Logic
       const decimals = currency === "USDC" ? 6 : 18;
       const amountToUnwrap = parseUnits(unwrapAmount, decimals);
 
@@ -211,6 +212,10 @@ function ActiveOrganizationDashboard({ contractAddress, onBack }: { contractAddr
   const [permitDays, setPermitDays] = useState("1");
   const [isPermitting, setIsPermitting] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
+  
+  // New States for Shareable Verification Link
+  const [shareableLink, setShareableLink] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const { data: employees, isLoading } = useReadContract({ address: contractAddress, abi: PAYROLL_ABI, functionName: "getEmployees" });
   const employeeList = (employees as `0x${string}`[] | undefined) ?? [];
@@ -228,22 +233,38 @@ function ActiveOrganizationDashboard({ contractAddress, onBack }: { contractAddr
 
   const handleGrantPermit = async () => {
     if (!permitAddress || !permitDays) return;
+    setShareableLink(""); // Reset on new attempt
+    
     try {
       setIsPermitting(true);
       const seconds = parseInt(permitDays) * 86400; // Convert days to seconds
       await writeContractAsync({
         address: contractAddress, abi: PAYROLL_ABI, functionName: "grantIncomeViewPermit", args: [permitAddress as `0x${string}`, BigInt(seconds)]
       });
-      alert(`Permit granted to ${permitAddress.slice(0,6)} for ${permitDays} days.`);
+      
+      // Generate the Verification Link 
+      const url = new URL(`${window.location.href}/verifier`);
+      url.searchParams.set("role", "verifier");
+      url.searchParams.set("org", contractAddress);
+      if (connectedAddress) {
+        url.searchParams.set("emp", connectedAddress);
+      }
+      setShareableLink(url.toString());
+
       setPermitAddress("");
     } catch (err) { console.error(err); } finally { setIsPermitting(false); }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(shareableLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
       <button onClick={onBack} className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors mb-6"><ArrowLeft size={16} /> Back to my organizations</button>
 
-      {/* NEW: Streaming Controls & Income Verifier */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="glass rounded-xl p-5 border border-emerald-500/20 bg-emerald-500/5">
           <div className="flex items-center gap-3 mb-2">
@@ -262,11 +283,34 @@ function ActiveOrganizationDashboard({ contractAddress, onBack }: { contractAddr
             <h3 className="font-bold text-white">Income Verification</h3>
           </div>
           <p className="text-xs text-slate-400 mb-3">Grant a landlord or bank temporary access to view your encrypted stream rate without revealing your total wallet history.</p>
+          
           <div className="flex gap-2">
              <input type="text" placeholder="0x..." className="input-field w-10 h-9 text-xs" value={permitAddress} onChange={(e)=>setPermitAddress(e.target.value)} />
              <input type="number" placeholder="Days" className="input-field w-10 h-9 text-xs" value={permitDays} onChange={(e)=>setPermitDays(e.target.value)} />
-             <button onClick={handleGrantPermit} disabled={isPermitting || !permitAddress} className="btn-primary h-9 px-3 text-xs">Grant</button>
+             <button onClick={handleGrantPermit} disabled={isPermitting || !permitAddress} className="btn-primary h-9 px-3 text-xs">
+               {isPermitting ? <Loader2 size={12} className="animate-spin" /> : "Grant"}
+             </button>
           </div>
+
+          {/* Verification Link UI */}
+          <AnimatePresence>
+            {shareableLink && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4 pt-3 border-t border-violet-500/20 overflow-hidden">
+                 <p className="text-xs text-emerald-400 mb-2 flex items-center gap-1"><CheckCircle2 size={12}/> Permit Active. Share this link:</p>
+                 <div className="flex items-center gap-2 bg-slate-900/80 p-1.5 rounded-lg border border-slate-700/50">
+                    <input type="text" readOnly value={shareableLink} className="bg-transparent text-[10px] text-slate-400 flex-1 outline-none px-2 truncate cursor-text" />
+                    <button 
+                      onClick={handleCopyLink} 
+                      className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-md transition-colors text-slate-300 hover:text-white"
+                      title="Copy Link"
+                    >
+                      {copied ? <Check size={14} className="text-emerald-400"/> : <Copy size={14} />}
+                    </button>
+                 </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
         </div>
       </div>
 
