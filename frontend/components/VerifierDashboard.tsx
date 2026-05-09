@@ -55,6 +55,16 @@ export default function VerifierDashboard() {
     },
   });
 
+  const { data: currencyType } = useReadContract({
+    address: activeContract as `0x${string}`,
+    abi: PAYROLL_ABI,
+    functionName: "paymentCurrency",
+    args: employeeAddress && employeeAddress.length === 42 ? [employeeAddress as `0x${string}`] : undefined,
+    query: { 
+      enabled: !!activeContract && employeeAddress.length === 42 
+    },
+  });
+
   // A better console log to debug the state
   console.log("Read Contract State:", { encryptedIncome, contractError, isContractLoading });
 
@@ -111,10 +121,16 @@ export default function VerifierDashboard() {
         }
       }
 
-      const rawRate = Number(formatUnits(result, 6)); 
+      const isETH = currencyType === 0;
+      const decimals = isETH ? 18 : 6;
+      const symbol = isETH ? "ETH" : "USDC";
+      const fiatPrefix = isETH ? "" : "$";
+
+      const rawRate = Number(formatUnits(result, decimals)); 
       const monthlyEstimate = rawRate * 2592000; 
 
-      setDecryptedRate(monthlyEstimate.toFixed(2));
+      // Update your state to include the dynamic symbol so the UI shows ETH or $ correctly
+      setDecryptedRate(`${fiatPrefix}${monthlyEstimate.toFixed(4)} ${symbol}`);
       setStatus("success");
 
     } catch (err) {
@@ -230,7 +246,7 @@ export default function VerifierDashboard() {
               <ShieldCheck size={32} className="text-emerald-400 mx-auto mb-3" />
               <p className="text-xs text-emerald-500/80 uppercase tracking-widest mb-1">Cryptographically Verified Salary</p>
               <h1 className="text-5xl font-bold text-emerald-400 font-display mb-2">
-                ${decryptedRate} <span className="text-lg text-emerald-500/60">/ mo</span>
+                {decryptedRate} <span className="text-lg text-emerald-500/60">/ mo</span>
               </h1>
               <p className="text-sm text-slate-400">Stream rate successfully decrypted via Fhenix Oracle</p>
             </motion.div>

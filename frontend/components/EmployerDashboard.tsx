@@ -425,7 +425,6 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5">Monthly Salary</label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">{currency === "0" ? "Ξ" : "$"}</span>
               <input type="number" placeholder="5000" value={salary} onChange={(e) => setSalary(e.target.value)} className="input-field pl-8" disabled={isLoading} required step="any" />
             </div>
           </div>
