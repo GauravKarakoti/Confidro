@@ -243,7 +243,7 @@ function ActiveOrganizationDashboard({ contractAddress, onBack }: { contractAddr
       });
       
       // Generate the Verification Link 
-      const url = new URL(`${window.location.href}/verifier`);
+      const url = new URL(`${window.location.href}verifier`);
       url.searchParams.set("role", "verifier");
       url.searchParams.set("org", contractAddress);
       if (connectedAddress) {

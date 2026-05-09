@@ -1,9 +1,9 @@
 export const FACTORY_CONTRACT_ADDRESS = 
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`);
 
-export const WRAPPER_ETH_ADDRESS = "0xE32A9c40874AD9f540B5381cF3B7E15CB9afbd37" as `0x${string}`;
-export const WRAPPER_USDC_ADDRESS = "0xED4484f95b1bB81Fd0ae1C61a1f2354Bb0a88bd4" as `0x${string}`;
-export const AAVE_POOL_ADDRESS = "0x0000000000000000000000000000000000000000" as `0x${string}`; // Replace with actual
+export const WRAPPER_ETH_ADDRESS = "0x592a9AA42204FE8a878Beb1575efe157ECa74DC3" as `0x${string}`;
+export const WRAPPER_USDC_ADDRESS = "0xDb7763bF5052d097a64695f34325A0BB098f4a3C" as `0x${string}`;
+export const AAVE_POOL_ADDRESS = "0xc7e83f738d7934A82571929042e4E58381ff429b" as `0x${string}`;
 export const WETH_ADDRESS = "0x4200000000000000000000000000000000000006" as `0x${string}`;
 export const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`;
 
