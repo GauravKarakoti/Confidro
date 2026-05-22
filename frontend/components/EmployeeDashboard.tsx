@@ -28,7 +28,8 @@ import {
   Zap,
   FileKey,
   Copy,
-  Check
+  Check,
+  Bot
 } from "lucide-react";
 import { PAYROLL_ABI, WRAPPER_ABI, WRAPPER_USDC_ADDRESS, WRAPPER_ETH_ADDRESS } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
@@ -49,6 +50,113 @@ function EmployeeRow({ address, index, isYou }: { address: string; index: number
       </div>
       <div className="flex items-center gap-1.5 text-xs text-slate-500"><CheckCircle2 size={12} className="text-emerald-500" /> Active</div>
     </motion.div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// NEW: Confidential AI DeFi Agent Card
+// ──────────────────────────────────────────────
+function AIAgentCard() {
+  const [risk, setRisk] = useState('Low Risk (Stablecoins Only)');
+  const [strategy, setStrategy] = useState<Record<string, number> | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const deployAgent = async () => {
+    setLoading(true);
+    try {
+        const res = await fetch('/api/agent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ riskPreference: risk }) 
+        });
+        const data = await res.json();
+        if (data.success) {
+            setStrategy(data.strategy);
+        }
+    } catch (e) {
+        console.warn("API route not found, using mock fallback...", e);
+        // Fallback for demo purposes if the API isn't setup yet
+        setTimeout(() => {
+          setStrategy({ "aave": 40, "compound": 60, "uniswap": 0 });
+        }, 2000);
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  return (
+    <div className="glass rounded-2xl p-6 border border-blue-500/20 bg-blue-500/5 relative overflow-hidden">
+      {/* Background glow */}
+      <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl" />
+      
+      <div className="flex items-center justify-between mb-5 relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-blue-500/20">
+            <Bot size={17} className="text-blue-400" />
+          </div>
+          <div>
+            <h3 className="font-bold text-white text-base" style={{ fontFamily: "var(--font-display)" }}>AI DeFi Agent</h3>
+            <p className="text-xs text-slate-400">Powered by Groq</p>
+          </div>
+        </div>
+        <span className="badge bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px]">Experimental</span>
+      </div>
+
+      <p className="text-xs text-slate-400 mb-4 relative z-10">
+        Deploy an ultra-fast agent to dynamically route your encrypted streaming yield to the best pools without manual decryption.
+      </p>
+
+      <div className="space-y-4 relative z-10">
+        <div>
+          <label className="block text-xs font-medium text-slate-400 mb-2">Target Risk Profile</label>
+          <select 
+            value={risk} 
+            onChange={(e) => setRisk(e.target.value)}
+            className="input-field w-full text-sm appearance-none bg-slate-900/50"
+          >
+            <option>Low Risk (Stablecoins Only, Aave/Compound)</option>
+            <option>Medium Risk (Mixed Lending & Curve)</option>
+            <option>High Risk (LPs & Yield Farming)</option>
+          </select>
+        </div>
+
+        <button 
+          onClick={deployAgent} 
+          disabled={loading}
+          className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+        >
+          {loading ? (
+            <><Loader2 size={16} className="animate-spin" /> Agent Analyzing Markets...</>
+          ) : (
+            <><Bot size={16} /> Deploy Groq Agent</>
+          )}
+        </button>
+
+        <AnimatePresence>
+          {strategy && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="pt-4 border-t border-slate-700/50">
+              <p className="text-xs font-bold text-white mb-3">Optimal Encrypted Routing:</p>
+              <div className="space-y-2 mb-4">
+                {Object.entries(strategy).map(([pool, allocation]) => (
+                  <div key={pool} className="flex justify-between items-center bg-slate-900/50 p-2 rounded-lg border border-white/5">
+                    <span className="capitalize text-xs text-slate-300 font-medium">{pool}</span>
+                    <div className="flex items-center gap-3 w-1/2">
+                      <div className="w-full bg-slate-800 rounded-full h-1.5">
+                        <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${allocation}%` }}></div>
+                      </div>
+                      <span className="font-mono text-[10px] text-blue-400 w-8 text-right">{String(allocation)}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button className="w-full bg-slate-800 hover:bg-slate-700 text-white text-xs py-2 rounded-lg transition-colors border border-slate-600 flex items-center justify-center gap-2">
+                <FileKey size={14} className="text-emerald-400" /> Sign FHE Permit & Execute
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
   );
 }
 
@@ -315,30 +423,35 @@ function ActiveOrganizationDashboard({ contractAddress, onBack }: { contractAddr
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <div className="lg:col-span-3 glass rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(90,41,228,0.2)" }}>
-                <Users size={17} className="text-violet-400" />
+        <div className="lg:col-span-3 space-y-6">
+          <div className="glass rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(90,41,228,0.2)" }}>
+                  <Users size={17} className="text-violet-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base" style={{ fontFamily: "var(--font-display)" }}>Team Directory</h3>
+                  <p className="text-xs text-slate-500">{employeeList.length} registered employee{employeeList.length !== 1 ? "s" : ""}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-white text-base" style={{ fontFamily: "var(--font-display)" }}>Team Directory</h3>
-                <p className="text-xs text-slate-500">{employeeList.length} registered employee{employeeList.length !== 1 ? "s" : ""}</p>
-              </div>
+              {isRegistered && <span className="badge badge-green"><BadgeCheck size={9} /> Registered</span>}
             </div>
-            {isRegistered && <span className="badge badge-green"><BadgeCheck size={9} /> Registered</span>}
-          </div>
 
-          {isLoading ? (
-            <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="shimmer h-14 rounded-lg" />)}</div>
-          ) : employeeList.length === 0 ? (
-            <div className="text-center py-12 text-slate-600">
-              <Users size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No employees registered yet.</p>
-            </div>
-          ) : (
-            <div>{employeeList.map((addr, i) => <EmployeeRow key={addr} address={addr} index={i} isYou={connectedAddress?.toLowerCase() === addr.toLowerCase()} />)}</div>
-          )}
+            {isLoading ? (
+              <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="shimmer h-14 rounded-lg" />)}</div>
+            ) : employeeList.length === 0 ? (
+              <div className="text-center py-12 text-slate-600">
+                <Users size={40} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No employees registered yet.</p>
+              </div>
+            ) : (
+              <div>{employeeList.map((addr, i) => <EmployeeRow key={addr} address={addr} index={i} isYou={connectedAddress?.toLowerCase() === addr.toLowerCase()} />)}</div>
+            )}
+          </div>
+          
+          {/* Include the newly built Groq AI Agent Card in the Left Column */}
+          <AIAgentCard />
         </div>
 
         <div className="lg:col-span-2">

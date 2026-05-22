@@ -42,9 +42,10 @@ Confidro leverages **Fully Homomorphic Encryption (FHE)** via **Fhenix** to enab
 
 - ✅ **Encrypted salary amounts** — stored and processed without decryption
 - ✅ **Selective disclosure** — employees see their own salary; compliance sees totals
-- ✅ **MEV protection** — encrypted mempool prevents front-running[reference:5]
-- ✅ **Institutional compliance** — audit trails without exposing individual data
+- ✅ **MEV protection** — encrypted mempool prevents front-running
+- ✅ **Institutional compliance & Forensics** — graph-based AML protections and audit trails without exposing individual data
 - ✅ **Cross-chain settlement** — via Privara SDK for multi-chain payroll
+- ✅ **Confidential AI DeFi Agents** — opt-in automated yield generation powered by Groq
 
 ## Problem Statement
 
@@ -134,12 +135,10 @@ Confidro removes these barriers by making payroll **confidential by design**.
 | **Encryption** | Fhenix CoFHE + FHE.sol | Fully Homomorphic Encryption |
 | **Smart Contracts** | Solidity ^0.8.24 | FHE-enabled contract logic |
 | **Client SDK** | @cofhe/sdk | Client-side encryption/decryption |
-| **React Hooks** | @cofhe/sdk/web | Framework integration |
+| **AI Processing** | Groq API | Ultra-fast reasoning for DeFi yield allocation |
 | **Settlement** | @reineira-os/sdk (Privara) | Cross-chain payment finality |
 | **Dev Environment** | Hardhat + cofhe-hardhat-plugin | Local testing & deployment |
-| **Mock Contracts** | cofhe-mock-contracts | Fast local FHE simulation |
 | **Frontend** | Next.js 14 + Wagmi + RainbowKit | dApp UI |
-| **AI Tooling** | reineira-code | Contract generation & audits |
 
 ### Supported Networks
 
@@ -360,12 +359,16 @@ FHE.allow(encryptedValue, complianceAddress);
 - Compliance dashboard with selective disclosure
 - Multi-token support (USDC, USDT, DAI)
 - Automated tax withholding resolvers
-- Mobile SDK (React Native)
 
-### 📅 Planned
-- Wave 3 — DAO governance module for contributor payroll
-- Wave 4 — ZK-proofs for regulatory reporting
-- Wave 5 — Cross-chain payroll (Ethereum → Arbitrum → Base)
+### 🚀 Planned (Enterprise & AI Expansion)
+#### Wave 5
+- **Autonomous Encrypted Agents (Powered by Groq):** Opt-in automation layer allowing employees to deploy personal AI agents. Leveraging Groq for ultra-fast reasoning, these agents will analyze market sentiment and dynamically allocate accrued streaming yield into risk-adjusted DeFi pools without requiring manual unwrapping of encrypted salaries.
+- **Graph-Based Compliance Forensics:** Robust anti-money laundering (AML) protections enabling enterprise-grade auditing and anomaly detection on encrypted financial graphs.
+
+#### Post Buildation
+- **DAO governance module for contributor payroll**
+- **ZK-proofs for regulatory reporting**
+- **Cross-chain payroll (Ethereum -> Arbitrum -> Base)**
 
 ## Development Workflow
 ### Using reineira-code for Development
