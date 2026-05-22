@@ -79,18 +79,77 @@ export default function ComplianceDashboard({ contractAddress }: { contractAddre
     }
   };
 
-  // NEW: Trigger for AML Network Scan
-  const runForensics = () => {
+  const runForensics = async () => {
     setScanActive(true);
-    // Simulating a backend call to an FHE/ZK graph analysis service
-    setTimeout(() => {
-        setForensicResults([
-            { node: '0x71C...976F', riskScore: 12, flagged: false, reason: 'Standard DeFi interactions' },
-            { node: '0x33A...21B4', riskScore: 5, flagged: false, reason: 'Direct settlement only' },
-            { node: '0x88D...DANGER', riskScore: 94, flagged: true, reason: '2-hop proximity to sanctioned mixer' },
-        ]);
+    
+    try {
+        if (!publicClient) throw new Error("Public client not initialized");
+
+        // 1. Fetch the actual employee addresses directly from the smart contract
+        const employees = await publicClient.readContract({
+            address: contractAddress,
+            abi: PAYROLL_ABI,
+            functionName: "getEmployees",
+        }) as string[];
+
+        // Fallback to the current user if the contract has no employees yet during testing
+        const addressesToScan = employees && employees.length > 0 
+            ? employees 
+            : [userAddress || "0x0000000000000000000000000000000000000000"];
+
+        // 2. Run the addresses through the GoPlus Security API
+        const results = await Promise.all(addressesToScan.map(async (address) => {
+            const res = await fetch(`https://api.gopluslabs.io/api/v1/address_security/${address}?chain_id=1`);
+            const data = await res.json();
+            
+            const securityInfo = data.result?.[address.toLowerCase()];
+            
+            let riskScore = 5; // Base safe score
+            let flagged = false;
+            let reason = "Standard interactions";
+
+            if (securityInfo) {
+                // Assess risk based on GoPlus flags
+                if (securityInfo.sanctioned === "1") {
+                    riskScore = 98;
+                    flagged = true;
+                    reason = "OFAC Sanctioned Address";
+                } else if (securityInfo.mixer === "1") {
+                    riskScore = 90;
+                    flagged = true;
+                    reason = "Direct interaction with Mixers";
+                } else if (securityInfo.phishing_activities === "1" || securityInfo.honeypot_related_address === "1") {
+                    riskScore = 85;
+                    flagged = true;
+                    reason = "Associated with phishing/scams";
+                } else if (securityInfo.financial_crime_record === "1") {
+                    riskScore = 95;
+                    flagged = true;
+                    reason = "Financial crime record detected";
+                } else if (securityInfo.darkweb_transactions === "1") {
+                    riskScore = 88;
+                    flagged = true;
+                    reason = "Darkweb transaction history";
+                }
+            }
+
+            return {
+                node: `${address.slice(0, 6)}...${address.slice(-4)}`,
+                riskScore,
+                flagged,
+                reason
+            };
+        }));
+
+        setForensicResults(results);
+    } catch (error) {
+        console.error("Forensic scan failed:", error);
+        setForensicResults([{
+            node: "Error", riskScore: 0, flagged: false, reason: "API scan failed to execute"
+        }]);
+    } finally {
         setScanActive(false);
-    }, 2500);
+    }
   };
 
   return (

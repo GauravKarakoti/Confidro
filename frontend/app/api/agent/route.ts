@@ -1,3 +1,4 @@
+// frontend/app/api/agent/route.ts
 import { NextResponse } from 'next/server';
 import Groq from 'groq-sdk';
 
@@ -9,14 +10,29 @@ export async function POST(req: Request) {
     try {
         const { riskPreference } = await req.json();
 
-        // 1. Fetch live market data (Mocked here for demonstration)
-        const marketData = `
-            Current DeFi Yields:
-            - Aave v3 USDC: 4.2% APY (Low Risk)
-            - Compound v3 USDC: 3.8% APY (Low Risk)
-            - Uniswap USDC/ETH LP: 12.5% APY (High Risk, Impermanent Loss exposure)
-            - Curve 3Pool: 5.1% APY (Medium Risk)
-        `;
+        // 1. Fetch live market data from DefiLlama Yields API
+        let marketData = "Live market data currently unavailable.";
+        try {
+            const response = await fetch('https://yields.llama.fi/pools');
+            const data = await response.json();
+
+            // Filter for some popular pools (Ethereum mainnet as baseline)
+            const aaveUSDC = data.data.find((p: any) => p.project === 'aave-v3' && p.symbol === 'USDC' && p.chain === 'Ethereum');
+            const compUSDC = data.data.find((p: any) => p.project === 'compound-v3' && p.symbol === 'USDC' && p.chain === 'Ethereum');
+            const curve3Pool = data.data.find((p: any) => p.project === 'curve-dex' && p.symbol === '3CRV');
+            const uniETHUSDC = data.data.find((p: any) => p.project === 'uniswap-v3' && p.symbol === 'USDC-WETH' && p.chain === 'Ethereum');
+
+            marketData = `
+                Current Live DeFi Yields:
+                - Aave v3 USDC: ${aaveUSDC ? aaveUSDC.apy.toFixed(2) : 4.2}% APY (Low Risk)
+                - Compound v3 USDC: ${compUSDC ? compUSDC.apy.toFixed(2) : 3.8}% APY (Low Risk)
+                - Uniswap USDC/ETH LP: ${uniETHUSDC ? uniETHUSDC.apy.toFixed(2) : 12.5}% APY (High Risk, IL exposure)
+                - Curve 3Pool: ${curve3Pool ? curve3Pool.apy.toFixed(2) : 5.1}% APY (Medium Risk)
+            `;
+            console.log(marketData);
+        } catch (fetchError) {
+            console.error("Failed to fetch DefiLlama data, using fallback.", fetchError);
+        }
 
         // 2. Construct the prompt for Groq
         const prompt = `
@@ -24,7 +40,7 @@ export async function POST(req: Request) {
         The user wants to allocate their encrypted streaming salary into DeFi protocols.
         Their requested risk preference is: "${riskPreference}".
         
-        Based on this market data: ${marketData}
+        Based on this live market data: ${marketData}
         
         Recommend a portfolio allocation strategy.
         Respond STRICTLY in JSON format. The keys should be the protocol names (lowercase) and the values should be integer percentages that sum to exactly 100.
@@ -34,7 +50,7 @@ export async function POST(req: Request) {
         // 3. Ultra-fast inference via Groq
         const chatCompletion = await groq.chat.completions.create({
             messages: [{ role: 'user', content: prompt }],
-            model: 'llama-3.1-8b-instant', // Fast, efficient model for JSON structuring
+            model: 'llama-3.1-8b-instant', 
             response_format: { type: 'json_object' },
             temperature: 0.2,
         });
