@@ -131,8 +131,17 @@ describe("ConfidroEscrow", function () {
       const handleAmount = await escrow.budgetETH(); 
 
       // Should revert if called directly by an EOA (employer)
+      // Passed 'handleAmount' for the 4 strategy weights to satisfy the new ABI requirement
       await expect(
-        escrow.connect(employer).distribute(employee, handleAmount, currency)
+        escrow.connect(employer).distribute(
+            employee, 
+            handleAmount, 
+            currency, 
+            handleAmount, // Aave Weight
+            handleAmount, // Comp Weight
+            handleAmount, // Uni Weight
+            handleAmount  // Curve Weight
+        )
       ).to.be.revertedWith("Only payroll contract can distribute");
       
       // NOTE: The successful FHE distribution path requires multi-contract ACL permissions 

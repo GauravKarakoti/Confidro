@@ -5,7 +5,15 @@ import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import "./ConfidroEscrow.sol";
 
 interface IPrivaraEscrow {
-    function distribute(address employee, euint64 amount, uint8 currency) external;
+    function distribute(
+        address employee, 
+        euint64 amount, 
+        uint8 currency,
+        euint64 aaveWeight,
+        euint64 compWeight,
+        euint64 uniWeight,
+        euint64 curveWeight
+    ) external;
     function tokenETH() external view returns (address);
     function tokenUSDC() external view returns (address);
 }
@@ -14,15 +22,24 @@ contract ConfidroPayroll {
     address public owner;
     
     // STREAMING + MULTICURRENCY SUPPORT
-    mapping(address => euint64) public encryptedFlowRates; 
+    mapping(address => euint64) public encryptedFlowRates;
     mapping(address => uint256) public lastUpdateTimes;
     mapping(address => bool) public hasActiveSalary;
-    mapping(address => uint8) public paymentCurrency; // 0 = ETH, 1 = USDC
+    mapping(address => uint8) public paymentCurrency;
+    // 0 = ETH, 1 = USDC
     
     // Total aggregated flow rates per currency (Tokens per second)
     euint64 public totalFlowRateETH;
     euint64 public totalFlowRateUSDC;
     
+    // --- NEW: AI DEFI AGENT ROUTING STATE ---
+    // Encrypted percentages (0-100) for yield routing
+    mapping(address => euint64) public aaveAllocations;
+    mapping(address => euint64) public compoundAllocations;
+    mapping(address => euint64) public uniswapAllocations;
+    mapping(address => euint64) public curveAllocations;
+    // ----------------------------------------
+
     address[] public employeeList;
     address[] public complianceList; 
     mapping(address => bool) public isCompliance;
@@ -42,6 +59,9 @@ contract ConfidroPayroll {
     event PrivaraEscrowSet(address indexed escrowAddress);
     event PermitGranted(address indexed employee, address indexed thirdParty, uint256 expiry);
     event PermitRevoked(address indexed employee, address indexed thirdParty);
+    
+    // --- NEW EVENT ---
+    event YieldRoutingUpdated(address indexed employee);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this");
@@ -88,11 +108,22 @@ contract ConfidroPayroll {
     
     function addEmployee(address employee, InEuint64 calldata encryptedFlowRateInput, uint8 currency) public onlyOwner {
         require(currency == 0 || currency == 1, "Invalid currency");
-
         euint64 flowRate = FHE.asEuint64(encryptedFlowRateInput);
+        aaveAllocations[employee] = FHE.asEuint64(100);
+        compoundAllocations[employee] = FHE.asEuint64(0);
+        uniswapAllocations[employee] = FHE.asEuint64(0);
+        curveAllocations[employee] = FHE.asEuint64(0);
         FHE.allowThis(flowRate);
         FHE.allow(flowRate, owner);
         FHE.allow(flowRate, employee);
+        FHE.allowThis(aaveAllocations[employee]);
+        FHE.allow(aaveAllocations[employee], employee);
+        FHE.allowThis(compoundAllocations[employee]);
+        FHE.allow(compoundAllocations[employee], employee);
+        FHE.allowThis(uniswapAllocations[employee]);
+        FHE.allow(uniswapAllocations[employee], employee);
+        FHE.allowThis(curveAllocations[employee]);
+        FHE.allow(curveAllocations[employee], employee);
 
         encryptedFlowRates[employee] = flowRate;
         paymentCurrency[employee] = currency;
@@ -126,30 +157,60 @@ contract ConfidroPayroll {
 
         uint256 timeDelta = block.timestamp - lastUpdateTimes[msg.sender];
         require(timeDelta > 0, "Too early to claim");
-
         euint64 streamedAmount = FHE.mul(encryptedFlowRates[msg.sender], FHE.asEuint64(timeDelta));
         FHE.allow(streamedAmount, privaraEscrow);
         
         uint8 curr = paymentCurrency[msg.sender];
-        
         // Allow the actual Token Wrapper contracts executing the transfer
         address targetToken = curr == 0 
-            ? IPrivaraEscrow(privaraEscrow).tokenETH() 
+            ?
+            IPrivaraEscrow(privaraEscrow).tokenETH() 
             : IPrivaraEscrow(privaraEscrow).tokenUSDC();
             
         FHE.allow(streamedAmount, targetToken);
 
-        lastUpdateTimes[msg.sender] = block.timestamp;
+        euint64 aaveW = aaveAllocations[msg.sender];
+        euint64 compW = compoundAllocations[msg.sender];
+        euint64 uniW = uniswapAllocations[msg.sender];
+        euint64 curveW = curveAllocations[msg.sender];
 
-        IPrivaraEscrow(privaraEscrow).distribute(msg.sender, streamedAmount, curr);
+        lastUpdateTimes[msg.sender] = block.timestamp;
+        IPrivaraEscrow(privaraEscrow).distribute(msg.sender, streamedAmount, curr, aaveW, compW, uniW, curveW);
         emit StreamClaimed(msg.sender, block.timestamp);
+    }
+
+    function updateYieldRouting(InEuint64[] calldata encryptedAllocations) external {
+        require(hasActiveSalary[msg.sender], "Not an active employee");
+        require(encryptedAllocations.length == 3, "Requires exactly 3 strategy allocations");
+
+        euint64 aaveAlloc = FHE.asEuint64(encryptedAllocations[0]);
+        euint64 compAlloc = FHE.asEuint64(encryptedAllocations[1]);
+        euint64 uniAlloc = FHE.asEuint64(encryptedAllocations[2]);
+        euint64 curveAlloc = FHE.asEuint64(encryptedAllocations[3]);
+
+        FHE.allowThis(aaveAlloc);
+        FHE.allow(aaveAlloc, msg.sender);
+        aaveAllocations[msg.sender] = aaveAlloc;
+
+        FHE.allowThis(compAlloc);
+        FHE.allow(compAlloc, msg.sender);
+        compoundAllocations[msg.sender] = compAlloc;
+
+        FHE.allowThis(uniAlloc);
+        FHE.allow(uniAlloc, msg.sender);
+        uniswapAllocations[msg.sender] = uniAlloc;
+
+        FHE.allowThis(curveAlloc);
+        FHE.allow(curveAlloc, msg.sender);
+        curveAllocations[msg.sender] = curveAlloc;
+
+        emit YieldRoutingUpdated(msg.sender);
     }
 
     // --- GRANULAR PERMISSIONS LOGIC ---
 
     function grantIncomeViewPermit(address thirdParty, uint256 durationInSeconds) external {
         require(hasActiveSalary[msg.sender], "No stream to prove");
-        
         uint256 expiry = block.timestamp + durationInSeconds;
         viewPermits[msg.sender][thirdParty] = ViewPermit(expiry, true);
         

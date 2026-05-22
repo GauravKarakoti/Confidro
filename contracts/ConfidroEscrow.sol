@@ -143,20 +143,56 @@ contract ConfidroEscrow {
         }
     }
 
-    // Called dynamically by ConfidroPayroll's claimStream()
-    function distribute(address employee, euint64 amount, uint8 currency) external onlyPayroll {
+    function distribute(
+        address employee, 
+        euint64 amount, 
+        uint8 currency,
+        euint64 aaveWeight,
+        euint64 compWeight,
+        euint64 uniWeight,
+        euint64 curveWeight
+    ) external onlyPayroll {
+        
+        // Dynamically slice the FHE stream via FHE.mul and FHE.div
+        euint64 hundred = FHE.asEuint64(100);
+        euint64 aaveAmount = FHE.div(FHE.mul(amount, aaveWeight), hundred);
+        euint64 compAmount = FHE.div(FHE.mul(amount, compWeight), hundred);
+        euint64 uniAmount = FHE.div(FHE.mul(amount, uniWeight), hundred);
+        euint64 curveAmount = FHE.div(FHE.mul(amount, curveWeight), hundred);
+
         if (currency == 0) {
-            tokenETH.transfer(employee, amount);
             budgetETH = FHE.sub(budgetETH, amount);
-            
             FHE.allowThis(budgetETH);
             FHE.allow(budgetETH, owner);
-        } else {
-            tokenUSDC.transfer(employee, amount);
-            budgetUSDC = FHE.sub(budgetUSDC, amount);
             
+            // Grant ciphertext allowance to the token wrapper before transfer
+            FHE.allow(aaveAmount, address(tokenETH));
+            tokenETH.transfer(employee, aaveAmount);
+
+            FHE.allow(compAmount, address(tokenETH));
+            tokenETH.transfer(employee, compAmount);
+
+            FHE.allow(uniAmount, address(tokenETH));
+            tokenETH.transfer(employee, uniAmount);
+
+            FHE.allow(curveAmount, address(tokenETH));
+            tokenETH.transfer(employee, curveAmount);
+        } else {
+            budgetUSDC = FHE.sub(budgetUSDC, amount);
             FHE.allowThis(budgetUSDC);
             FHE.allow(budgetUSDC, owner);
+
+            FHE.allow(aaveAmount, address(tokenUSDC));
+            tokenUSDC.transfer(employee, aaveAmount);
+
+            FHE.allow(compAmount, address(tokenUSDC));
+            tokenUSDC.transfer(employee, compAmount);
+
+            FHE.allow(uniAmount, address(tokenUSDC));
+            tokenUSDC.transfer(employee, uniAmount);
+
+            FHE.allow(curveAmount, address(tokenUSDC));
+            tokenUSDC.transfer(employee, curveAmount);
         }
     }
 }

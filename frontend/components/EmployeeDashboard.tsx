@@ -53,13 +53,17 @@ function EmployeeRow({ address, index, isYou }: { address: string; index: number
   );
 }
 
-// ──────────────────────────────────────────────
-// NEW: Confidential AI DeFi Agent Card
-// ──────────────────────────────────────────────
-function AIAgentCard() {
+function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
   const [risk, setRisk] = useState('Low Risk (Stablecoins Only)');
   const [strategy, setStrategy] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
+
+  // Wagmi Hooks for Execution
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  const { address: userAddress, chainId } = useAccount();
 
   const deployAgent = async () => {
     setLoading(true);
@@ -75,7 +79,6 @@ function AIAgentCard() {
         }
     } catch (e) {
         console.warn("API route not found, using mock fallback...", e);
-        // Fallback for demo purposes if the API isn't setup yet
         setTimeout(() => {
           setStrategy({ "aave": 40, "compound": 60, "uniswap": 0 });
         }, 2000);
@@ -84,9 +87,68 @@ function AIAgentCard() {
     }
   };
 
+  const handleExecuteStrategy = async () => {
+    if (!strategy) return;
+    setIsExecuting(true);
+    try {
+      if (!publicClient || !walletClient || !userAddress || !chainId) {
+        throw new Error("Wallet not connected.");
+      }
+
+      // 1. Initialize FHE Client
+      const cofheWeb = await import("@cofhe/sdk/web");
+      const cofheCore = await import("@cofhe/sdk");
+      const { createCofheConfig, createCofheClient } = cofheWeb;
+      const { Encryptable } = cofheCore;
+
+      const config = createCofheConfig({ environment: "web", supportedChains: [baseSepolia] });
+      const client = await createCofheClient(config);
+      await client.connect(publicClient, walletClient);
+
+      // 2. Encrypt strategy allocations
+      // Assumes your contract accepts allocations in a fixed order (e.g., Aave, Compound, Uniswap. Curve)
+      const aaveAlloc = strategy.aave || 0;
+      const compAlloc = strategy.compound || 0;
+      const uniAlloc = strategy.uniswap || 0;
+      const curveAlloc = strategy.curve || 0;
+
+      const encryptedInputs = await client.encryptInputs([
+        Encryptable.uint64(BigInt(aaveAlloc)),
+        Encryptable.uint64(BigInt(compAlloc)),
+        Encryptable.uint64(BigInt(uniAlloc)),
+        Encryptable.uint64(BigInt(curveAlloc)),
+      ]).execute();
+
+      // Map to the EncryptedInput struct format expected by your contract
+      const formattedInputs = encryptedInputs.map(res => ({
+        ctHash: res.ctHash,
+        securityZone: res.securityZone,
+        utype: res.utype,
+        signature: res.signature as `0x${string}`,
+      }));
+
+      // 3. Execute Contract Call
+      // Update "updateYieldRouting" to whatever your routing function is named in PAYROLL_ABI
+      const txHash = await writeContractAsync({
+        address: contractAddress,
+        abi: PAYROLL_ABI,
+        functionName: "updateYieldRouting",
+        args: [formattedInputs],
+        gas: BigInt(8000000)
+      });
+      
+      alert(`FHE Permit Signed! Successfully routed encrypted yield across: ${Object.keys(strategy).join(', ')}. Tx: ${txHash}`);
+      setStrategy(null); 
+    } catch (error: any) {
+      console.error("Agent execution failed:", error);
+      alert(error.message || "Execution failed");
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
   return (
     <div className="glass rounded-2xl p-6 border border-blue-500/20 bg-blue-500/5 relative overflow-hidden">
-      {/* Background glow */}
       <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl" />
       
       <div className="flex items-center justify-between mb-5 relative z-10">
@@ -122,7 +184,7 @@ function AIAgentCard() {
 
         <button 
           onClick={deployAgent} 
-          disabled={loading}
+          disabled={loading || isExecuting}
           className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
         >
           {loading ? (
@@ -149,9 +211,19 @@ function AIAgentCard() {
                   </div>
                 ))}
               </div>
-              <button className="w-full bg-slate-800 hover:bg-slate-700 text-white text-xs py-2 rounded-lg transition-colors border border-slate-600 flex items-center justify-center gap-2">
-                <FileKey size={14} className="text-emerald-400" /> Sign FHE Permit & Execute
+              
+              <button 
+                onClick={handleExecuteStrategy}
+                disabled={isExecuting}
+                className="w-full bg-slate-800 hover:bg-slate-700 text-white text-xs py-2 rounded-lg transition-colors border border-slate-600 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isExecuting ? (
+                  <><Loader2 size={14} className="animate-spin" /> Routing Yield...</>
+                ) : (
+                  <><FileKey size={14} className="text-emerald-400" /> Sign FHE Permit & Execute</>
+                )}
               </button>
+              
             </motion.div>
           )}
         </AnimatePresence>
@@ -450,8 +522,7 @@ function ActiveOrganizationDashboard({ contractAddress, onBack }: { contractAddr
             )}
           </div>
           
-          {/* Include the newly built Groq AI Agent Card in the Left Column */}
-          <AIAgentCard />
+          <AIAgentCard contractAddress={contractAddress} />
         </div>
 
         <div className="lg:col-span-2">

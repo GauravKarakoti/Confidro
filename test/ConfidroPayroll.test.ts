@@ -113,26 +113,22 @@ describe("ConfidroPayroll", function () {
     const [encryptedFlowRate] = await fhe.encryptInputs([Encryptable.uint64(50n)]).execute();
     await payroll.addEmployee(employee1Address, encryptedFlowRate, 0);
 
-    // FIXED: Instead of fighting node automine behavior, we surgically test a 0 time delta 
-    // by manually setting the 'lastUpdateTimes' storage slot to the exact timestamp of the next block.
-    
-    // 1. Calculate storage slot for lastUpdateTimes[employee1Address] (Mapping is at slot 2)
+    // Calculate storage slot for lastUpdateTimes[employee1Address] (Mapping is at slot 2)
     const abiCoder = new hre.ethers.AbiCoder();
     const slot = hre.ethers.keccak256(abiCoder.encode(["address", "uint256"], [employee1Address, 2]));
 
-    // 2. Queue the next block's exact timestamp
+    // Queue the next block's exact timestamp
     const latestBlock = await hre.ethers.provider.getBlock("latest");
     const nextTimestamp = latestBlock!.timestamp + 100;
     await hre.network.provider.send("evm_setNextBlockTimestamp", [nextTimestamp]);
 
-    // 3. Force lastUpdateTimes[employee1Address] to perfectly match the next block timestamp
+    // Force lastUpdateTimes[employee1Address] to perfectly match the next block timestamp
     await hre.network.provider.send("hardhat_setStorageAt", [
       await payroll.getAddress(),
       slot,
       hre.ethers.toBeHex(nextTimestamp, 32)
     ]);
 
-    // 4. When the transaction mines, timeDelta will perfectly equal 0 (nextTimestamp - nextTimestamp)
     await expect(
       payroll.connect(employee1).claimStream({ gasLimit: 15000000 })
     ).to.be.revertedWith("Too early to claim");
@@ -206,5 +202,33 @@ describe("ConfidroPayroll", function () {
     // Revoke permit explicitly
     await expect(payroll.connect(employee1).revokeIncomeViewPermit(thirdPartyAddress))
       .to.emit(payroll, "PermitRevoked");
+  });
+
+  // --- NEW YIELD ROUTING TEST ---
+  it("8. Should allow employee to update yield routing allocations", async function () {
+    const fhe = await hre.cofhe.createClientWithBatteries(employee1);
+    const employee1Address = await employee1.getAddress();
+
+    const [encryptedFlow] = await fhe.encryptInputs([Encryptable.uint64(50n)]).execute();
+    await payroll.addEmployee(employee1Address, encryptedFlow, 0);
+
+    // Setup the 4 encrypted allocations (e.g., 40% Aave, 30% Compound, 20% Uniswap, 10% Curve)
+    const allocations = await fhe.encryptInputs([
+        Encryptable.uint64(40n),
+        Encryptable.uint64(30n),
+        Encryptable.uint64(20n),
+        Encryptable.uint64(10n)
+    ]).execute();
+
+    await expect(payroll.connect(employee1).updateYieldRouting(allocations))
+        .to.emit(payroll, "YieldRoutingUpdated")
+        .withArgs(employee1Address);
+
+    // Verify state handles exist for the new parameters
+    const aaveAlloc = await payroll.aaveAllocations(employee1Address);
+    const curveAlloc = await payroll.curveAllocations(employee1Address);
+    
+    expect(aaveAlloc).to.not.be.undefined;
+    expect(curveAlloc).to.not.be.undefined;
   });
 });
