@@ -60,32 +60,74 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
 
     saveDeployment(network.name, 'CompoundMasterAdapter', await compAdapter.getAddress())
 
-    // 4. Deploy FHE Wrappers
-    console.log("Deploying FHE Wrappers for Uniswap & Compound...");
+    // 4. Deploy Curve Master Adapter
+    console.log("Deploying Curve Master Adapter...");
+    const CURVE_ADDRESS_PROVIDER = "0x0000000022D53366457F9d5E68Ec105046FC4383";
+    const providerAbi = ["function get_address(uint256 id) view returns (address)"];
+    const registryAbi = ["function find_pool_for_coins(address _from, address _to) view returns (address)"];
+    
+    let curvePoolAddress = ethers.ZeroAddress;
+    try {
+        const addressProvider = await ethers.getContractAt(providerAbi, CURVE_ADDRESS_PROVIDER);
+        const registryAddress = await addressProvider.get_address(0);
+        if (registryAddress !== ethers.ZeroAddress) {
+            const registry = await ethers.getContractAt(registryAbi, registryAddress);
+            curvePoolAddress = await registry.find_pool_for_coins(BASE_SEPOLIA_USDC, BASE_SEPOLIA_WETH);
+        }
+    } catch (e) {
+        console.log("AddressProvider not found or error fetching live Curve pool.");
+    }
+
+    if (curvePoolAddress === ethers.ZeroAddress) {
+        console.log("No live Curve pool found on Base Sepolia. Using a mock/placeholder address for testing...");
+        // Placeholder address to allow deployment testing to succeed if the testnet pool is missing
+        curvePoolAddress = "0x1111111111111111111111111111111111111111"; 
+    } else {
+        console.log(`Live Curve Pool found at: ${curvePoolAddress}`);
+    }
+
+    const CurveMasterAdapter = await ethers.getContractFactory('CurveMasterAdapter');
+    const curveAdapter = await CurveMasterAdapter.deploy(BASE_SEPOLIA_USDC, curvePoolAddress);
+    await curveAdapter.waitForDeployment();
+    console.log(`Curve Master Adapter: ${curveAdapter.target}`);
+
+    saveDeployment(network.name, 'CurveMasterAdapter', await curveAdapter.getAddress())
+
+    // 5. Deploy FHE Wrappers
+    console.log("Deploying FHE Wrappers for Uniswap, Compound, & Curve...");
     const FHERC20Wrapper = await ethers.getContractFactory('FHERC20Wrapper');
     
+    // Uniswap Wrappers
     const wrapperUniUSDC = await FHERC20Wrapper.deploy(uniAdapterUSDC.target, 6, false);
     await wrapperUniUSDC.waitForDeployment();
-
     const wrapperUniWETH = await FHERC20Wrapper.deploy(uniAdapterWETH.target, 18, true);
     await wrapperUniWETH.waitForDeployment();
 
     saveDeployment(network.name, 'WrapperUniUSDC', await wrapperUniUSDC.getAddress())
     saveDeployment(network.name, 'WrapperUniWETH', await wrapperUniWETH.getAddress())
 
+    // Compound Wrappers
     const wrapperCompUSDC = await FHERC20Wrapper.deploy(COMP_CUSDCV3, 6, false);
     await wrapperCompUSDC.waitForDeployment();
-
     const wrapperCompWETH = await FHERC20Wrapper.deploy(COMP_CWETHV3, 18, true);
     await wrapperCompWETH.waitForDeployment();
 
     saveDeployment(network.name, 'WrapperCompUSDC', await wrapperCompUSDC.getAddress())
     saveDeployment(network.name, 'WrapperCompWETH', await wrapperCompWETH.getAddress())
 
-    // 5. Deploy Real Aave FHE Wrappers
+    // Curve Wrappers
+    const wrapperCurveUSDC = await FHERC20Wrapper.deploy(curveAdapter.target, 6, false);
+    await wrapperCurveUSDC.waitForDeployment();
+    const wrapperCurveWETH = await FHERC20Wrapper.deploy(curveAdapter.target, 18, true);
+    await wrapperCurveWETH.waitForDeployment();
+
+    saveDeployment(network.name, 'WrapperCurveUSDC', await wrapperCurveUSDC.getAddress())
+    saveDeployment(network.name, 'WrapperCurveWETH', await wrapperCurveWETH.getAddress())
+
+
+    // 6. Deploy Real Aave FHE Wrappers
     console.log("Deploying FHE Wrappers using Real Aave V3 aTokens...");
     
-    // Fetch live aToken addresses from the official address book
     const aWETHAddress = AaveV3BaseSepolia.ASSETS.WETH.A_TOKEN;
     const aUSDCAddress = AaveV3BaseSepolia.ASSETS.USDC.A_TOKEN;
     const aavePoolAddress = AaveV3BaseSepolia.POOL;
@@ -103,7 +145,7 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
     saveDeployment(network.name, 'WrapperAaveETH', await wrapperAaveETH.getAddress())
     saveDeployment(network.name, 'WrapperAaveUSDC', await wrapperAaveUSDC.getAddress())
 
-    // 6. Deploy Factory
+    // 7. Deploy Factory
     console.log("Deploying Confidro Payroll Factory...");
     const ConfidroPayrollFactory = await ethers.getContractFactory('ConfidroPayrollFactory')
     const payrollFactory = await ConfidroPayrollFactory.deploy()
@@ -126,6 +168,10 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
         CompAdapter: compAdapter.target,
         WrapperCompUSDC: wrapperCompUSDC.target,
         WrapperCompWETH: wrapperCompWETH.target,
+
+        CurveAdapter: curveAdapter.target,
+        WrapperCurveUSDC: wrapperCurveUSDC.target,
+        WrapperCurveWETH: wrapperCurveWETH.target,
         
         ConfidroPayrollFactory: payrollFactory.target
     }
