@@ -181,7 +181,7 @@ contract ConfidroPayroll {
 
     function updateYieldRouting(InEuint64[] calldata encryptedAllocations) external {
         require(hasActiveSalary[msg.sender], "Not an active employee");
-        require(encryptedAllocations.length == 3, "Requires exactly 3 strategy allocations");
+        require(encryptedAllocations.length == 4, "Requires exactly 4 strategy allocations");
 
         euint64 aaveAlloc = FHE.asEuint64(encryptedAllocations[0]);
         euint64 compAlloc = FHE.asEuint64(encryptedAllocations[1]);

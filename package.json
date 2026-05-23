@@ -12,8 +12,7 @@
 		"localcofhe:faucet": "hardhat task:cofhe:usefaucet --network localcofhe",
 		"localcofhe:deploy": "hardhat deploy --network localcofhe",
 		"localcofhe:stop": "hardhat localcofhe:stop",
-		"base-sepolia:deploy": "hardhat deploy --network base-sepolia",
-		"interact": "hardhat interact --factory 0xc25eFD056F78f5656A8f292f13240249fA61AB06 --network base-sepolia"
+		"base-sepolia:deploy": "hardhat deploy --network base-sepolia"
 	},
 	"repository": {
 		"type": "git",

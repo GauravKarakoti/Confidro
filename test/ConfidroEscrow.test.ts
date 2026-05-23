@@ -20,21 +20,30 @@ describe("ConfidroEscrow", function () {
   beforeEach(async function () {
     [owner, employer, employee1, employee2] = await ethers.getSigners();
 
-    // 1. Deploy Standard Mocks
+    // 1. Deploy Standard Mocks 
     const MockERC20 = await ethers.getContractFactory("MockERC20");
-    usdcMock = await MockERC20.deploy();
+    usdcMock = await MockERC20.deploy("Mock USDC", "USDC", 6);
     
     const MockWETH = await ethers.getContractFactory("MockWETH");
     wethMock = await MockWETH.deploy();
+
+    // --- NEW: Deploy Mock aTokens ---
+    const aWethMock = await MockERC20.deploy("Mock aWETH", "aWETH", 18);
+    const aUsdcMock = await MockERC20.deploy("Mock aUSDC", "aUSDC", 6);
 
     // 2. Deploy Mock Aave Pool
     const MockAavePool = await ethers.getContractFactory("MockAavePool");
     const aavePoolMock = await MockAavePool.deploy();
     aavePoolMockAddress = await aavePoolMock.getAddress();
 
+    // --- NEW: Initialize Aave reserves mapping Base Token -> aToken ---
+    await aavePoolMock.initReserve(await wethMock.getAddress(), await aWethMock.getAddress());
+    await aavePoolMock.initReserve(await usdcMock.getAddress(), await aUsdcMock.getAddress());
+
+    // --- FIXED: The Wrappers must wrap the aTokens, not the base tokens ---
     const FHERC20Wrapper = await ethers.getContractFactory("FHERC20Wrapper");
-    wrapperEthMock = await FHERC20Wrapper.deploy(await wethMock.getAddress(), 18, true); 
-    wrapperUsdcMock = await FHERC20Wrapper.deploy(await usdcMock.getAddress(), 6, false); 
+    wrapperEthMock = await FHERC20Wrapper.deploy(await aWethMock.getAddress(), 18, true); 
+    wrapperUsdcMock = await FHERC20Wrapper.deploy(await aUsdcMock.getAddress(), 6, false); 
 
     // 3. Deploy MockPayroll Contract & Set Tokens
     const MockPayroll = await ethers.getContractFactory("MockPayroll");

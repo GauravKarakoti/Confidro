@@ -53,9 +53,10 @@ describe("ConfidroPayroll", function () {
     const employee1Address = await employee1.getAddress();
 
     const MockToken = await hre.ethers.getContractFactory("MockERC20");
-    const mockTokenETH = await MockToken.deploy();
-    const mockTokenUSDC = await MockToken.deploy();
-    const mockAave = await MockToken.deploy(); 
+    // FIXED: Added required constructor arguments
+    const mockTokenETH = await MockToken.deploy("Mock ETH", "ETH", 18);
+    const mockTokenUSDC = await MockToken.deploy("Mock USDC", "USDC", 6);
+    const mockAave = await MockToken.deploy("Mock Aave Token", "aToken", 18); 
     
     await payroll.deployAndSetEscrow(
       await mockTokenETH.getAddress(), 
@@ -68,8 +69,7 @@ describe("ConfidroPayroll", function () {
     const [encryptedFlowRate] = await fhe.encryptInputs([Encryptable.uint64(50n)]).execute();
     await payroll.addEmployee(employee1Address, encryptedFlowRate, 0); 
 
-    // Fast forward time to accumulate stream
-    await hre.network.provider.send("evm_increaseTime", [3600]); // 1 hour
+    await hre.network.provider.send("evm_increaseTime", [3600]); 
     await hre.network.provider.send("evm_mine");
 
     await expect(payroll.connect(employee1).claimStream())
@@ -81,14 +81,14 @@ describe("ConfidroPayroll", function () {
     const employee1Address = await employee1.getAddress();
 
     const MockToken = await hre.ethers.getContractFactory("MockERC20");
-    const mockTokenETH = await MockToken.deploy();
+    const mockTokenETH = await MockToken.deploy("Mock ETH", "ETH", 18); // FIXED
     await payroll.deployAndSetEscrow(
       await mockTokenETH.getAddress(), await mockTokenETH.getAddress(),
       await mockTokenETH.getAddress(), await mockTokenETH.getAddress(), await mockTokenETH.getAddress()
     );
 
     const [encryptedFlowRate] = await fhe.encryptInputs([Encryptable.uint64(50n)]).execute();
-    await payroll.addEmployee(employee1Address, encryptedFlowRate, 1); // USDC
+    await payroll.addEmployee(employee1Address, encryptedFlowRate, 1); 
 
     await hre.network.provider.send("evm_increaseTime", [3600]);
     await hre.network.provider.send("evm_mine");
@@ -104,7 +104,7 @@ describe("ConfidroPayroll", function () {
     const employee1Address = await employee1.getAddress();
 
     const MockToken = await hre.ethers.getContractFactory("MockERC20");
-    const mockTokenETH = await MockToken.deploy();
+    const mockTokenETH = await MockToken.deploy("Mock ETH", "ETH", 18); // FIXED
     await payroll.deployAndSetEscrow(
       await mockTokenETH.getAddress(), await mockTokenETH.getAddress(),
       await mockTokenETH.getAddress(), await mockTokenETH.getAddress(), await mockTokenETH.getAddress()
@@ -113,16 +113,13 @@ describe("ConfidroPayroll", function () {
     const [encryptedFlowRate] = await fhe.encryptInputs([Encryptable.uint64(50n)]).execute();
     await payroll.addEmployee(employee1Address, encryptedFlowRate, 0);
 
-    // Calculate storage slot for lastUpdateTimes[employee1Address] (Mapping is at slot 2)
     const abiCoder = new hre.ethers.AbiCoder();
     const slot = hre.ethers.keccak256(abiCoder.encode(["address", "uint256"], [employee1Address, 2]));
 
-    // Queue the next block's exact timestamp
     const latestBlock = await hre.ethers.provider.getBlock("latest");
     const nextTimestamp = latestBlock!.timestamp + 100;
     await hre.network.provider.send("evm_setNextBlockTimestamp", [nextTimestamp]);
 
-    // Force lastUpdateTimes[employee1Address] to perfectly match the next block timestamp
     await hre.network.provider.send("hardhat_setStorageAt", [
       await payroll.getAddress(),
       slot,
@@ -204,16 +201,19 @@ describe("ConfidroPayroll", function () {
       .to.emit(payroll, "PermitRevoked");
   });
 
-  // --- NEW YIELD ROUTING TEST ---
   it("8. Should allow employee to update yield routing allocations", async function () {
-    const fhe = await hre.cofhe.createClientWithBatteries(employee1);
+    // FIXED: Need an FHE client for the owner and one for the employee separately 
+    // to bypass the PoK ciphertext validation checks
+    const fheOwner = await hre.cofhe.createClientWithBatteries(owner);
+    const fheEmployee = await hre.cofhe.createClientWithBatteries(employee1);
     const employee1Address = await employee1.getAddress();
 
-    const [encryptedFlow] = await fhe.encryptInputs([Encryptable.uint64(50n)]).execute();
+    // Use owner's FHE instance since the owner sends the addEmployee transaction
+    const [encryptedFlow] = await fheOwner.encryptInputs([Encryptable.uint64(50n)]).execute();
     await payroll.addEmployee(employee1Address, encryptedFlow, 0);
 
-    // Setup the 4 encrypted allocations (e.g., 40% Aave, 30% Compound, 20% Uniswap, 10% Curve)
-    const allocations = await fhe.encryptInputs([
+    // Setup the 4 encrypted allocations using the employee's instance
+    const allocations = await fheEmployee.encryptInputs([
         Encryptable.uint64(40n),
         Encryptable.uint64(30n),
         Encryptable.uint64(20n),
@@ -224,7 +224,6 @@ describe("ConfidroPayroll", function () {
         .to.emit(payroll, "YieldRoutingUpdated")
         .withArgs(employee1Address);
 
-    // Verify state handles exist for the new parameters
     const aaveAlloc = await payroll.aaveAllocations(employee1Address);
     const curveAlloc = await payroll.curveAllocations(employee1Address);
     

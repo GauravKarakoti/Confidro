@@ -29,7 +29,6 @@ export async function POST(req: Request) {
                 - Uniswap USDC/ETH LP: ${uniETHUSDC ? uniETHUSDC.apy.toFixed(2) : 12.5}% APY (High Risk, IL exposure)
                 - Curve 3Pool: ${curve3Pool ? curve3Pool.apy.toFixed(2) : 5.1}% APY (Medium Risk)
             `;
-            console.log(marketData);
         } catch (fetchError) {
             console.error("Failed to fetch DefiLlama data, using fallback.", fetchError);
         }
