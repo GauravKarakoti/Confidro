@@ -3,20 +3,22 @@ import { AaveV3BaseSepolia } from "@aave-dao/aave-address-book";
 export const FACTORY_CONTRACT_ADDRESS = 
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`);
 
-export const AAVE_WRAPPER_ETH = "0xYourAaveEthWrapper" as `0x${string}`;
-export const COMP_WRAPPER_ETH = "0xYourCompEthWrapper" as `0x${string}`;
-export const UNI_WRAPPER_ETH = "0xYourUniEthWrapper" as `0x${string}`;
+export const CURVE_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
+export const CURVE_WRAPPER_USDC = "0xYourCurveUsdcWrapper" as `0x${string}`;
 export const CURVE_WRAPPER_ETH = "0xYourCurveEthWrapper" as `0x${string}`;
 
-// --- USDC Yield Wrappers ---
-export const AAVE_WRAPPER_USDC = "0xYourAaveUsdcWrapper" as `0x${string}`;
-export const COMP_WRAPPER_USDC = "0xYourCompUsdcWrapper" as `0x${string}`;
-export const UNI_WRAPPER_USDC = "0xYourUniUsdcWrapper" as `0x${string}`;
-export const CURVE_WRAPPER_USDC = "0xYourCurveUsdcWrapper" as `0x${string}`;
-export const AAVE_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
 export const COMP_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
+export const COMP_WRAPPER_USDC = "0xYourCompUsdcWrapper" as `0x${string}`;
+export const COMP_WRAPPER_ETH = "0xYourCompEthWrapper" as `0x${string}`;
+
 export const UNI_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
-export const CURVE_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
+export const UNI_WRAPPER_USDC = "0xYourUniUsdcWrapper" as `0x${string}`;
+export const UNI_WRAPPER_ETH = "0xYourUniEthWrapper" as `0x${string}`;
+
+export const AAVE_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
+export const AAVE_WRAPPER_USDC = "0xYourAaveUsdcWrapper" as `0x${string}`;
+export const AAVE_WRAPPER_ETH = "0xYourAaveEthWrapper" as `0x${string}`;
+
 export const WETH_ADDRESS = "0x4200000000000000000000000000000000000006" as `0x${string}`;
 export const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`;
 
