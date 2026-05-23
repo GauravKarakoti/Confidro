@@ -82,15 +82,15 @@ contract ConfidroPayroll {
     }
 
     function deployAndSetEscrow(
-        address tokenETH, 
-        address tokenUSDC, 
-        address aavePool,
         address wethAddress,
-        address usdcAddress
+        address usdcAddress,
+        address[4] memory yieldPools,
+        address[4] memory ethWrappers,
+        address[4] memory usdcWrappers
     ) external onlyOwner {
         require(privaraEscrow == address(0), "Escrow already deployed");
         ConfidroEscrow newEscrow = new ConfidroEscrow(
-            owner, address(this), tokenETH, tokenUSDC, aavePool, wethAddress, usdcAddress
+            owner, address(this), wethAddress, usdcAddress, yieldPools, ethWrappers, usdcWrappers
         );
         privaraEscrow = address(newEscrow);
         emit PrivaraEscrowSet(address(newEscrow));
@@ -150,31 +150,27 @@ contract ConfidroPayroll {
         emit EmployeeAdded(employee, currency);
     }
     
-    // Continuous streaming claim replacing the batch processing
     function claimStream() public {
         require(hasActiveSalary[msg.sender], "No active stream");
         require(privaraEscrow != address(0), "Escrow not deployed");
 
         uint256 timeDelta = block.timestamp - lastUpdateTimes[msg.sender];
         require(timeDelta > 0, "Too early to claim");
+
         euint64 streamedAmount = FHE.mul(encryptedFlowRates[msg.sender], FHE.asEuint64(timeDelta));
+        
+        // Grant the Escrow permission to interact with the sliced stream amounts
         FHE.allow(streamedAmount, privaraEscrow);
         
         uint8 curr = paymentCurrency[msg.sender];
-        // Allow the actual Token Wrapper contracts executing the transfer
-        address targetToken = curr == 0 
-            ?
-            IPrivaraEscrow(privaraEscrow).tokenETH() 
-            : IPrivaraEscrow(privaraEscrow).tokenUSDC();
-            
-        FHE.allow(streamedAmount, targetToken);
-
+        
         euint64 aaveW = aaveAllocations[msg.sender];
         euint64 compW = compoundAllocations[msg.sender];
         euint64 uniW = uniswapAllocations[msg.sender];
         euint64 curveW = curveAllocations[msg.sender];
 
         lastUpdateTimes[msg.sender] = block.timestamp;
+        
         IPrivaraEscrow(privaraEscrow).distribute(msg.sender, streamedAmount, curr, aaveW, compW, uniW, curveW);
         emit StreamClaimed(msg.sender, block.timestamp);
     }

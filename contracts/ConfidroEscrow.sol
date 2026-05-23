@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
-// Interfaces for standard ERC20 and WETH
 interface IERC20 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function approve(address spender, uint256 amount) external returns (bool);
@@ -14,36 +13,45 @@ interface IWETH {
     function withdraw(uint wad) external;
 }
 
-// Aave V3 Pool Interface
+// Generic Interfaces for Yield Protocols
 interface IAavePool {
     function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
+}
+interface IGenericYieldPool {
+    function supply(address asset, uint256 amount) external;
 }
 
 interface IFHERC20Wrapper {
     function transfer(address to, euint64 amount) external;
-    function transfer(address to, uint256 amount) external; // [FIX ADDED] Add the uint256 overload back
     function wrap(uint256 amount) external;
-    function underlying() external view returns (address); // This will return the aToken address
+    function underlying() external view returns (address);
 }
 
 contract ConfidroEscrow {
     address public owner;
     address public payrollContract;
-    IAavePool public aavePool;
 
-    // Base tokens before Aave routing
     address public wethAddress;
     address public usdcAddress;
 
-    // FHERC20 tokens used for confidential payroll (Wrapping aWETH and aUSDC)
-    IFHERC20Wrapper public tokenETH;  
-    IFHERC20Wrapper public tokenUSDC;
+    // Yield Protocol Contracts
+    IAavePool public aavePool;
+    IGenericYieldPool public compPool;
+    IGenericYieldPool public uniPool;
+    IGenericYieldPool public curvePool;
+
+    struct YieldWrappers {
+        IFHERC20Wrapper aave;
+        IFHERC20Wrapper comp;
+        IFHERC20Wrapper uni;
+        IFHERC20Wrapper curve;
+    }
+
+    YieldWrappers public ethWrappers;
+    YieldWrappers public usdcWrappers;
     
     euint64 public budgetETH;
     euint64 public budgetUSDC;
-
-    event DepositedNative(address indexed sender, uint256 amount);
-    event DepositedTokens(address indexed sender, address token, uint256 amount);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this");
@@ -57,21 +65,33 @@ contract ConfidroEscrow {
 
     constructor(
         address _owner, 
-        address _payrollContract, 
-        address _tokenETH, 
-        address _tokenUSDC, 
-        address _aavePool,
+        address _payrollContract,
         address _wethAddress,
-        address _usdcAddress
+        address _usdcAddress,
+        address[4] memory _yieldPools, // [Aave, Comp, Uni, Curve]
+        address[4] memory _ethWrappers, 
+        address[4] memory _usdcWrappers
     ) {
         owner = _owner;
         payrollContract = _payrollContract;
-        tokenETH = IFHERC20Wrapper(_tokenETH);
-        tokenUSDC = IFHERC20Wrapper(_tokenUSDC);
-        aavePool = IAavePool(_aavePool);
         wethAddress = _wethAddress;
         usdcAddress = _usdcAddress;
-        
+
+        aavePool = IAavePool(_yieldPools[0]);
+        compPool = IGenericYieldPool(_yieldPools[1]);
+        uniPool = IGenericYieldPool(_yieldPools[2]);
+        curvePool = IGenericYieldPool(_yieldPools[3]);
+
+        ethWrappers = YieldWrappers(
+            IFHERC20Wrapper(_ethWrappers[0]), IFHERC20Wrapper(_ethWrappers[1]),
+            IFHERC20Wrapper(_ethWrappers[2]), IFHERC20Wrapper(_ethWrappers[3])
+        );
+
+        usdcWrappers = YieldWrappers(
+            IFHERC20Wrapper(_usdcWrappers[0]), IFHERC20Wrapper(_usdcWrappers[1]),
+            IFHERC20Wrapper(_usdcWrappers[2]), IFHERC20Wrapper(_usdcWrappers[3])
+        );
+
         budgetETH = FHE.asEuint64(0);
         FHE.allowThis(budgetETH);
         FHE.allow(budgetETH, _owner);
@@ -81,118 +101,120 @@ contract ConfidroEscrow {
         FHE.allow(budgetUSDC, _owner);
     }
 
-    // YIELD GENERATION + MULTICURRENCY
     function depositTokens(uint256 amount, uint8 currency) external payable {
         require(amount > 0, "Amount must be greater than 0");
         require(currency == 0 || currency == 1, "Invalid currency");
         
+        // Split deposit across the 4 protocols in plaintext to maintain liquid balances
+        uint256 splitAmount = amount / 4;
+
+        address underlying = currency == 0 ? wethAddress : usdcAddress;
+        YieldWrappers memory wrappers = currency == 0 ? ethWrappers : usdcWrappers;
+
         if (currency == 0) {
-            // 1. Verify native ETH was sent
             require(msg.value == amount, "Incorrect ETH value sent");
-
-            // 2. Wrap Native ETH -> WETH
             IWETH(wethAddress).deposit{value: amount}();
-
-            // 3. Supply WETH to Aave to mint aWETH (Yield generation begins)
-            IERC20(wethAddress).approve(address(aavePool), amount);
-            aavePool.supply(wethAddress, amount, address(this), 0);
-
-            // 4. Wrap the yield-bearing aWETH into encrypted FHERC20 token
-            address aWETH = tokenETH.underlying();
-            IERC20(aWETH).approve(address(tokenETH), amount);
-            tokenETH.wrap(amount);
-            
-            budgetETH = FHE.add(budgetETH, FHE.asEuint64(amount));
-            FHE.allowThis(budgetETH); 
-            FHE.allow(budgetETH, owner);
-
-            emit DepositedNative(msg.sender, amount);
-
         } else {
-            // 1. Verify no native ETH was accidentally sent with a USDC transaction
             require(msg.value == 0, "Native ETH sent with USDC deposit");
-
-            // 2. Pull standard USDC from the employer to the Escrow
             IERC20(usdcAddress).transferFrom(msg.sender, address(this), amount);
-
-            // 3. Supply USDC to Aave to mint aUSDC
-            IERC20(usdcAddress).approve(address(aavePool), amount);
-            aavePool.supply(usdcAddress, amount, address(this), 0);
-
-            // 4. Wrap the yield-bearing aUSDC into encrypted FHERC20 token
-            address aUSDC = tokenUSDC.underlying();
-            IERC20(aUSDC).approve(address(tokenUSDC), amount);
-            tokenUSDC.wrap(amount);
-            
-            budgetUSDC = FHE.add(budgetUSDC, FHE.asEuint64(amount));
-            FHE.allowThis(budgetUSDC); 
-            FHE.allow(budgetUSDC, owner);
-
-            emit DepositedTokens(msg.sender, address(tokenUSDC), amount);
         }
-    }
 
-    function withdrawTokens(uint256 amount, uint8 currency) external onlyOwner {
-        require(amount > 0, "Amount must be greater than 0");
-        require(currency == 0 || currency == 1, "Invalid currency");
+        // 1. Aave 
+        IERC20(underlying).approve(address(aavePool), splitAmount);
+        aavePool.supply(underlying, splitAmount, address(this), 0);
+        IERC20(wrappers.aave.underlying()).approve(address(wrappers.aave), splitAmount);
+        wrappers.aave.wrap(splitAmount);
+
+        // 2. Compound
+        IERC20(underlying).approve(address(compPool), splitAmount);
+        compPool.supply(underlying, splitAmount);
+        IERC20(wrappers.comp.underlying()).approve(address(wrappers.comp), splitAmount);
+        wrappers.comp.wrap(splitAmount);
+
+        // 3. Uniswap 
+        IERC20(underlying).approve(address(uniPool), splitAmount);
+        uniPool.supply(underlying, splitAmount);
+        IERC20(wrappers.uni.underlying()).approve(address(wrappers.uni), splitAmount);
+        wrappers.uni.wrap(splitAmount);
+
+        // 4. Curve
+        IERC20(underlying).approve(address(curvePool), splitAmount);
+        curvePool.supply(underlying, splitAmount);
+        IERC20(wrappers.curve.underlying()).approve(address(wrappers.curve), splitAmount);
+        wrappers.curve.wrap(splitAmount);
 
         if (currency == 0) {
-            tokenETH.transfer(msg.sender, amount);
+            budgetETH = FHE.add(budgetETH, FHE.asEuint64(amount));
+            FHE.allowThis(budgetETH); FHE.allow(budgetETH, owner);
         } else {
-            tokenUSDC.transfer(msg.sender, amount);
+            budgetUSDC = FHE.add(budgetUSDC, FHE.asEuint64(amount));
+            FHE.allowThis(budgetUSDC); FHE.allow(budgetUSDC, owner);
         }
     }
 
     function distribute(
-        address employee, 
-        euint64 amount, 
-        uint8 currency,
-        euint64 aaveWeight,
-        euint64 compWeight,
-        euint64 uniWeight,
-        euint64 curveWeight
+        address employee, euint64 amount, uint8 currency,
+        euint64 aaveWeight, euint64 compWeight, euint64 uniWeight, euint64 curveWeight
     ) external onlyPayroll {
         
-        // Dynamically slice the FHE stream via FHE.mul and FHE.div
         euint64 hundred = FHE.asEuint64(100);
         euint64 aaveAmount = FHE.div(FHE.mul(amount, aaveWeight), hundred);
         euint64 compAmount = FHE.div(FHE.mul(amount, compWeight), hundred);
         euint64 uniAmount = FHE.div(FHE.mul(amount, uniWeight), hundred);
         euint64 curveAmount = FHE.div(FHE.mul(amount, curveWeight), hundred);
 
+        YieldWrappers memory wrappers = currency == 0 ? ethWrappers : usdcWrappers;
+
         if (currency == 0) {
             budgetETH = FHE.sub(budgetETH, amount);
-            FHE.allowThis(budgetETH);
-            FHE.allow(budgetETH, owner);
-            
-            // Grant ciphertext allowance to the token wrapper before transfer
-            FHE.allow(aaveAmount, address(tokenETH));
-            tokenETH.transfer(employee, aaveAmount);
-
-            FHE.allow(compAmount, address(tokenETH));
-            tokenETH.transfer(employee, compAmount);
-
-            FHE.allow(uniAmount, address(tokenETH));
-            tokenETH.transfer(employee, uniAmount);
-
-            FHE.allow(curveAmount, address(tokenETH));
-            tokenETH.transfer(employee, curveAmount);
+            FHE.allowThis(budgetETH); FHE.allow(budgetETH, owner);
         } else {
             budgetUSDC = FHE.sub(budgetUSDC, amount);
-            FHE.allowThis(budgetUSDC);
-            FHE.allow(budgetUSDC, owner);
-
-            FHE.allow(aaveAmount, address(tokenUSDC));
-            tokenUSDC.transfer(employee, aaveAmount);
-
-            FHE.allow(compAmount, address(tokenUSDC));
-            tokenUSDC.transfer(employee, compAmount);
-
-            FHE.allow(uniAmount, address(tokenUSDC));
-            tokenUSDC.transfer(employee, uniAmount);
-
-            FHE.allow(curveAmount, address(tokenUSDC));
-            tokenUSDC.transfer(employee, curveAmount);
+            FHE.allowThis(budgetUSDC); FHE.allow(budgetUSDC, owner);
         }
+
+        // FHE allowances and transfers for the distinct wrapper tokens
+        FHE.allow(aaveAmount, address(wrappers.aave));
+        wrappers.aave.transfer(employee, aaveAmount);
+
+        FHE.allow(compAmount, address(wrappers.comp));
+        wrappers.comp.transfer(employee, compAmount);
+
+        FHE.allow(uniAmount, address(wrappers.uni));
+        wrappers.uni.transfer(employee, uniAmount);
+
+        FHE.allow(curveAmount, address(wrappers.curve));
+        wrappers.curve.transfer(employee, curveAmount);
+    }
+
+    function withdrawTokens(uint256 amount, uint8 currency) external onlyOwner {
+        require(amount > 0, "Amount must be greater than 0");
+        require(currency == 0 || currency == 1, "Invalid currency");
+        
+        uint256 splitAmount = amount / 4;
+        YieldWrappers memory wrappers = currency == 0 ? ethWrappers : usdcWrappers;
+
+        if (currency == 0) {
+            budgetETH = FHE.sub(budgetETH, FHE.asEuint64(amount));
+            FHE.allowThis(budgetETH); FHE.allow(budgetETH, owner);
+        } else {
+            budgetUSDC = FHE.sub(budgetUSDC, FHE.asEuint64(amount));
+            FHE.allowThis(budgetUSDC); FHE.allow(budgetUSDC, owner);
+        }
+
+        euint64 encSplitAmount = FHE.asEuint64(splitAmount);
+
+        // Allow and transfer 25% from each distinct wrapper
+        FHE.allow(encSplitAmount, address(wrappers.aave));
+        wrappers.aave.transfer(msg.sender, encSplitAmount);
+
+        FHE.allow(encSplitAmount, address(wrappers.comp));
+        wrappers.comp.transfer(msg.sender, encSplitAmount);
+
+        FHE.allow(encSplitAmount, address(wrappers.uni));
+        wrappers.uni.transfer(msg.sender, encSplitAmount);
+
+        FHE.allow(encSplitAmount, address(wrappers.curve));
+        wrappers.curve.transfer(msg.sender, encSplitAmount);
     }
 }

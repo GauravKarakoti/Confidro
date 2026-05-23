@@ -1,9 +1,22 @@
+import { AaveV3BaseSepolia } from "@aave-dao/aave-address-book";
+
 export const FACTORY_CONTRACT_ADDRESS = 
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`);
 
-export const WRAPPER_ETH_ADDRESS = "0x592a9AA42204FE8a878Beb1575efe157ECa74DC3" as `0x${string}`;
-export const WRAPPER_USDC_ADDRESS = "0xDb7763bF5052d097a64695f34325A0BB098f4a3C" as `0x${string}`;
-export const AAVE_POOL_ADDRESS = "0xc7e83f738d7934A82571929042e4E58381ff429b" as `0x${string}`;
+export const AAVE_WRAPPER_ETH = "0xYourAaveEthWrapper" as `0x${string}`;
+export const COMP_WRAPPER_ETH = "0xYourCompEthWrapper" as `0x${string}`;
+export const UNI_WRAPPER_ETH = "0xYourUniEthWrapper" as `0x${string}`;
+export const CURVE_WRAPPER_ETH = "0xYourCurveEthWrapper" as `0x${string}`;
+
+// --- USDC Yield Wrappers ---
+export const AAVE_WRAPPER_USDC = "0xYourAaveUsdcWrapper" as `0x${string}`;
+export const COMP_WRAPPER_USDC = "0xYourCompUsdcWrapper" as `0x${string}`;
+export const UNI_WRAPPER_USDC = "0xYourUniUsdcWrapper" as `0x${string}`;
+export const CURVE_WRAPPER_USDC = "0xYourCurveUsdcWrapper" as `0x${string}`;
+export const AAVE_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
+export const COMP_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
+export const UNI_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
+export const CURVE_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
 export const WETH_ADDRESS = "0x4200000000000000000000000000000000000006" as `0x${string}`;
 export const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`;
 
@@ -409,21 +422,6 @@ export const PAYROLL_ABI = [
       "inputs": [
         {
           "internalType": "address",
-          "name": "tokenETH",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "tokenUSDC",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "aavePool",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
           "name": "wethAddress",
           "type": "address"
         },
@@ -431,6 +429,21 @@ export const PAYROLL_ABI = [
           "internalType": "address",
           "name": "usdcAddress",
           "type": "address"
+        },
+        {
+          "internalType": "address[4]",
+          "name": "yieldPools",
+          "type": "address[4]"
+        },
+        {
+          "internalType": "address[4]",
+          "name": "ethWrappers",
+          "type": "address[4]"
+        },
+        {
+          "internalType": "address[4]",
+          "name": "usdcWrappers",
+          "type": "address[4]"
         }
       ],
       "name": "deployAndSetEscrow",
@@ -785,21 +798,6 @@ export const ESCROW_ABI = [
         },
         {
           "internalType": "address",
-          "name": "_tokenETH",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "_tokenUSDC",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "_aavePool",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
           "name": "_wethAddress",
           "type": "address"
         },
@@ -807,6 +805,21 @@ export const ESCROW_ABI = [
           "internalType": "address",
           "name": "_usdcAddress",
           "type": "address"
+        },
+        {
+          "internalType": "address[4]",
+          "name": "_yieldPools",
+          "type": "address[4]"
+        },
+        {
+          "internalType": "address[4]",
+          "name": "_ethWrappers",
+          "type": "address[4]"
+        },
+        {
+          "internalType": "address[4]",
+          "name": "_usdcWrappers",
+          "type": "address[4]"
         }
       ],
       "stateMutability": "nonpayable",
@@ -822,50 +835,6 @@ export const ESCROW_ABI = [
       ],
       "name": "SecurityZoneOutOfBounds",
       "type": "error"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "DepositedNative",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "DepositedTokens",
-      "type": "event"
     },
     {
       "inputs": [],
@@ -901,6 +870,32 @@ export const ESCROW_ABI = [
           "internalType": "euint64",
           "name": "",
           "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "compPool",
+      "outputs": [
+        {
+          "internalType": "contract IGenericYieldPool",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "curvePool",
+      "outputs": [
+        {
+          "internalType": "contract IGenericYieldPool",
+          "name": "",
+          "type": "address"
         }
       ],
       "stateMutability": "view",
@@ -969,6 +964,34 @@ export const ESCROW_ABI = [
     },
     {
       "inputs": [],
+      "name": "ethWrappers",
+      "outputs": [
+        {
+          "internalType": "contract IFHERC20Wrapper",
+          "name": "aave",
+          "type": "address"
+        },
+        {
+          "internalType": "contract IFHERC20Wrapper",
+          "name": "comp",
+          "type": "address"
+        },
+        {
+          "internalType": "contract IFHERC20Wrapper",
+          "name": "uni",
+          "type": "address"
+        },
+        {
+          "internalType": "contract IFHERC20Wrapper",
+          "name": "curve",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "owner",
       "outputs": [
         {
@@ -995,23 +1018,10 @@ export const ESCROW_ABI = [
     },
     {
       "inputs": [],
-      "name": "tokenETH",
+      "name": "uniPool",
       "outputs": [
         {
-          "internalType": "contract IFHERC20Wrapper",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "tokenUSDC",
-      "outputs": [
-        {
-          "internalType": "contract IFHERC20Wrapper",
+          "internalType": "contract IGenericYieldPool",
           "name": "",
           "type": "address"
         }
@@ -1026,6 +1036,34 @@ export const ESCROW_ABI = [
         {
           "internalType": "address",
           "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "usdcWrappers",
+      "outputs": [
+        {
+          "internalType": "contract IFHERC20Wrapper",
+          "name": "aave",
+          "type": "address"
+        },
+        {
+          "internalType": "contract IFHERC20Wrapper",
+          "name": "comp",
+          "type": "address"
+        },
+        {
+          "internalType": "contract IFHERC20Wrapper",
+          "name": "uni",
+          "type": "address"
+        },
+        {
+          "internalType": "contract IFHERC20Wrapper",
+          "name": "curve",
           "type": "address"
         }
       ],

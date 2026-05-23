@@ -31,7 +31,11 @@ import {
   Check,
   Bot
 } from "lucide-react";
-import { PAYROLL_ABI, WRAPPER_ABI, WRAPPER_USDC_ADDRESS, WRAPPER_ETH_ADDRESS } from "@/lib/contract";
+import { 
+  PAYROLL_ABI, WRAPPER_ABI, 
+  AAVE_WRAPPER_ETH, COMP_WRAPPER_ETH, UNI_WRAPPER_ETH, CURVE_WRAPPER_ETH,
+  AAVE_WRAPPER_USDC, COMP_WRAPPER_USDC, UNI_WRAPPER_USDC, CURVE_WRAPPER_USDC 
+} from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
 import { parseUnits } from "viem";
 
@@ -232,12 +236,30 @@ function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
   );
 }
 
-// ──────────────────────────────────────────────
-// 1. Withdraw/Unwrap Card
-// ──────────────────────────────────────────────
 function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: string; isRegistered: boolean }) {
   const [currency, setCurrency] = useState<"USDC" | "ETH">("USDC");
-  const activeAddress = currency === "USDC" ? WRAPPER_USDC_ADDRESS : WRAPPER_ETH_ADDRESS;
+  const [pool, setPool] = useState<"Aave" | "Compound" | "Uniswap" | "Curve">("Aave");
+  
+  // Dynamically resolve the correct wrapper address based on selected currency AND pool
+  const getActiveAddress = () => {
+    if (currency === "USDC") {
+      switch (pool) {
+        case "Aave": return AAVE_WRAPPER_USDC;
+        case "Compound": return COMP_WRAPPER_USDC;
+        case "Uniswap": return UNI_WRAPPER_USDC;
+        case "Curve": return CURVE_WRAPPER_USDC;
+      }
+    } else {
+      switch (pool) {
+        case "Aave": return AAVE_WRAPPER_ETH;
+        case "Compound": return COMP_WRAPPER_ETH;
+        case "Uniswap": return UNI_WRAPPER_ETH;
+        case "Curve": return CURVE_WRAPPER_ETH;
+      }
+    }
+  };
+  
+  const activeAddress = getActiveAddress();
 
   const [status, setStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined);
@@ -252,10 +274,16 @@ function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: s
   const { data: walletClient } = useWalletClient();
   const { address: userAddress, chainId } = useAccount();
 
-  useEffect(() => { setShowBalance(false); setDecryptedBalance(null); setUnwrapAmount(""); setStatus("idle"); }, [currency]);
+  // Reset states if the currency OR pool changes
+  useEffect(() => { 
+    setShowBalance(false); setDecryptedBalance(null); setUnwrapAmount(""); setStatus("idle"); 
+  }, [currency, pool]);
 
   const { data: encryptedBalance, refetch: refetchBalance } = useReadContract({
-    address: activeAddress, abi: WRAPPER_ABI, functionName: "getEncryptedBalance", args: connectedAddress ? [connectedAddress as `0x${string}`] : undefined,
+    address: activeAddress, 
+    abi: WRAPPER_ABI, 
+    functionName: "getEncryptedBalance", 
+    args: connectedAddress ? [connectedAddress as `0x${string}`] : undefined,
     query: { enabled: !!connectedAddress && isRegistered },
   });
 
@@ -303,7 +331,11 @@ function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: s
       const amountToUnwrap = parseUnits(unwrapAmount, decimals);
 
       const hash = await writeContractAsync({
-        address: activeAddress, abi: WRAPPER_ABI, functionName: "unwrap", args: [amountToUnwrap], gas: BigInt(8000000)
+        address: activeAddress, 
+        abi: WRAPPER_ABI, 
+        functionName: "unwrap", 
+        args: [amountToUnwrap], 
+        gas: BigInt(8000000)
       });
       
       setTxHash(hash); setStatus("success"); setUnwrapAmount(""); setShowBalance(false); setDecryptedBalance(null);
@@ -332,10 +364,25 @@ function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: s
         </div>
       </div>
 
+      {/* --- NEW: Pool Selection Dropdown --- */}
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-slate-400 mb-1.5">Source Yield Protocol</label>
+        <select 
+          value={pool} 
+          onChange={(e) => setPool(e.target.value as any)}
+          className="input-field w-full text-sm appearance-none bg-slate-900/50"
+        >
+          <option value="Aave">Aave V3 Wrapper</option>
+          <option value="Compound">Compound V3 Wrapper</option>
+          <option value="Uniswap">Uniswap V3 Wrapper</option>
+          <option value="Curve">Curve 3Pool Wrapper</option>
+        </select>
+      </div>
+
       <div className="rounded-xl p-4 mb-4 flex items-center justify-between" style={{ background: "rgba(0,255,157,0.04)", border: "1px solid rgba(0,255,157,0.1)" }}>
         <div className="w-full">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">FHE Encrypted Balance ({currency})</span>
+            <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">FHE {pool} Balance ({currency})</span>
             {isRegistered && (
               <button onClick={handleRevealBalance} disabled={isDecrypting || !encryptedBalance} className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50">
                 {isDecrypting ? <><Loader2 size={12} className="animate-spin" /> Decrypting...</> : showBalance ? <><EyeOff size={12} /> Hide</> : <><Eye size={12} /> Reveal</>}
@@ -347,7 +394,7 @@ function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: s
             {showBalance && decryptedBalance !== null ? (
               <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-baseline gap-1">
                 <span className="text-3xl font-bold text-emerald-400" style={{ fontFamily: "var(--font-display)" }}>{currency === "USDC" ? "$" : "Ξ"}{decryptedBalance}</span>
-                <span className="text-sm text-slate-500">FHE-{currency}</span>
+                <span className="text-sm text-slate-500">FHE-{pool}-{currency}</span>
               </motion.div>
             ) : (
               <motion.div key="hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-3xl font-bold text-emerald-400 tracking-widest" style={{ fontFamily: "var(--font-display)", marginTop: "-4px" }}>****</motion.div>

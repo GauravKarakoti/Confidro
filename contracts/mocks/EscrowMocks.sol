@@ -65,3 +65,22 @@ contract MockWETH is MockERC20 {
         require(success, "ETH transfer failed");
     }
 }
+
+contract MockGenericYieldPool {
+    mapping(address => address) public yieldTokens;
+
+    function initReserve(address asset, address yieldToken) external {
+        yieldTokens[asset] = yieldToken;
+    }
+
+    function supply(address asset, uint256 amount) external {
+        address yieldToken = yieldTokens[asset];
+        require(yieldToken != address(0), "Reserve not initialized");
+
+        // Pull base asset (e.g. USDC) from Escrow
+        MockERC20(asset).transferFrom(msg.sender, address(this), amount);
+        
+        // Mint yield asset (e.g. cUSDC) directly to the Escrow
+        MockERC20(yieldToken).mint(msg.sender, amount);
+    }
+}
