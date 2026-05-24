@@ -75,8 +75,14 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
     }
 
     if (curvePoolAddress === ethers.ZeroAddress) {
-        console.log("No live Curve pool found on Base Sepolia. Using a mock/placeholder address for testing...");
-        curvePoolAddress = "0x1111111111111111111111111111111111111111"; 
+        console.log("No live Curve pool found on Base Sepolia. Deploying MockCurvePool...");
+        
+        const MockCurvePool = await ethers.getContractFactory('MockCurvePool');
+        const mockCurvePool = await MockCurvePool.deploy();
+        await mockCurvePool.waitForDeployment();
+        
+        curvePoolAddress = await mockCurvePool.getAddress();
+        console.log(`Mock Curve Pool deployed at: ${curvePoolAddress}`);
     } else {
         console.log(`Live Curve Pool found at: ${curvePoolAddress}`);
     }
