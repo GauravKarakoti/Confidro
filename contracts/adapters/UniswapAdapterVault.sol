@@ -62,52 +62,69 @@ contract UniswapAdapterVault is ERC20 {
         // 1. Pull the deposit from ConfidroEscrow
         IERC20(asset).transferFrom(msg.sender, address(this), amount);
 
-        // 2. Split the deposit 50/50 to pair it
         uint256 halfAmount = amount / 2;
 
-        // 3. Swap 50% into the paired asset via SwapRouter02
-        IERC20(asset).approve(address(swapRouter), halfAmount);
-        
-        ISwapRouter02.ExactInputSingleParams memory swapParams = ISwapRouter02.ExactInputSingleParams({
-            tokenIn: asset,
-            tokenOut: pairedAsset,
-            fee: poolFee,
-            recipient: address(this),
-            amountIn: halfAmount,
-            amountOutMinimum: 0,
-            sqrtPriceLimitX96: 0
-        });
-        
-        uint256 amountOut = swapRouter.exactInputSingle(swapParams);
+        // 2. Wrap external calls in try/catch to prevent the entire Escrow 
+        // deposit from failing due to micro-liquidity limits or empty testnet pools.
+        if (halfAmount > 0) {
+            IERC20(asset).approve(address(swapRouter), halfAmount);
+            
+            ISwapRouter02.ExactInputSingleParams memory swapParams = ISwapRouter02.ExactInputSingleParams({
+                tokenIn: asset,
+                tokenOut: pairedAsset,
+                fee: poolFee,
+                recipient: address(this),
+                amountIn: halfAmount,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+            
+            // Try to execute the swap
+            try swapRouter.exactInputSingle(swapParams) returns (uint256 amountOut) {
+                
+                // Sort tokens to match Uniswap V3's Token0/Token1 requirements
+                address token0 = asset < pairedAsset ? asset : pairedAsset;
+                address token1 = asset < pairedAsset ? pairedAsset : asset;
+                
+                uint256 amount0Desired = asset == token0 ? (amount - halfAmount) : amountOut;
+                uint256 amount1Desired = asset == token1 ? (amount - halfAmount) : amountOut;
 
-        // 4. Sort tokens to match Uniswap V3's Token0/Token1 requirements
-        address token0 = asset < pairedAsset ? asset : pairedAsset;
-        address token1 = asset < pairedAsset ? pairedAsset : asset;
-        
-        uint256 amount0Desired = asset == token0 ? (amount - halfAmount) : amountOut;
-        uint256 amount1Desired = asset == token1 ? (amount - halfAmount) : amountOut;
+                IERC20(token0).approve(address(positionManager), amount0Desired);
+                IERC20(token1).approve(address(positionManager), amount1Desired);
 
-        // 5. Mint the NFT Liquidity Position 
-        IERC20(token0).approve(address(positionManager), amount0Desired);
-        IERC20(token1).approve(address(positionManager), amount1Desired);
+                INonfungiblePositionManager.MintParams memory mintParams = INonfungiblePositionManager.MintParams({
+                    token0: token0,
+                    token1: token1,
+                    fee: poolFee,
+                    tickLower: -887220, 
+                    tickUpper: 887220,
+                    amount0Desired: amount0Desired,
+                    amount1Desired: amount1Desired,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: address(this), 
+                    deadline: block.timestamp + 300
+                });
 
-        INonfungiblePositionManager.MintParams memory mintParams = INonfungiblePositionManager.MintParams({
-            token0: token0,
-            token1: token1,
-            fee: poolFee,
-            tickLower: -887220, // Full range ticks for tickSpacing 60
-            tickUpper: 887220,
-            amount0Desired: amount0Desired,
-            amount1Desired: amount1Desired,
-            amount0Min: 0,
-            amount1Min: 0,
-            recipient: address(this), // Vault holds the NFT securely
-            deadline: block.timestamp + 300
-        });
+                // Try to mint the position
+                try positionManager.mint(mintParams) {
+                    // Success: Yield position created
+                } catch {
+                    // Mint Failed (Likely "L" error: liquidity == 0 due to micro-amount).
+                    // Reset approvals. Vault safely holds the raw tokens.
+                    IERC20(token0).approve(address(positionManager), 0);
+                    IERC20(token1).approve(address(positionManager), 0);
+                }
 
-        positionManager.mint(mintParams);
-        
-        // 6. Issue ERC20 Receipt Tokens to the Escrow (which will then be wrapped into FHE)
+            } catch {
+                // Swap Failed (Likely empty testnet pool).
+                // Reset approvals. Vault safely holds the unswapped underlying tokens.
+                IERC20(asset).approve(address(swapRouter), 0);
+            }
+        }
+
+        // 3. Issue ERC20 Receipt Tokens to the Escrow regardless of Uniswap success.
+        // This ensures the other protocols (Aave, Curve) can still succeed without this reverting.
         _mint(msg.sender, amount);
     }
 }

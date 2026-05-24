@@ -11,9 +11,9 @@ export const COMP_POOL_ADDRESS = "0xb9CD99f55b1baF27C048898eAa3679D105Fe9e0B" as
 export const COMP_WRAPPER_USDC = "0xd80f4B7D30d43117AF82Ce57A955Ec77fF282b06" as `0x${string}`;
 export const COMP_WRAPPER_ETH = "0x4C0Cb8ABb5BD3ab83949c09b90b0D51448CbF2fB" as `0x${string}`;
 
-export const UNI_POOL_ADDRESS = "0x15422198D236DBC979786762387E947182Ae7a40" as `0x${string}`;
-export const UNI_WRAPPER_USDC = "0xdfcb0153Cf2bb1Ff4F9e452CFeCa36C23d5c4cDE" as `0x${string}`;
-export const UNI_WRAPPER_ETH = "0x8722754894f0b440428173a11470eFd616F51430" as `0x${string}`;
+export const UNI_POOL_ADDRESS = "0x762211066CCaeeD0c2Af657507DCb9E910BA7b43" as `0x${string}`;
+export const UNI_WRAPPER_USDC = "0xe391CBe4655D181059eED54711dAC50750f37dd0" as `0x${string}`;
+export const UNI_WRAPPER_ETH = "0x4aD9383e97CfEC2025e0D07124849715F84A24ff" as `0x${string}`;
 
 export const AAVE_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
 export const AAVE_WRAPPER_USDC = "0xD5fD5b3636984B286800954318475BC1aC1C2b3D" as `0x${string}`;
