@@ -62,7 +62,8 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   const [depositToken, setDepositToken] = useState<"0" | "1">("0");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawToken, setWithdrawToken] = useState<"0" | "1">("0");
-  
+  const [deployTxHash, setDeployTxHash] = useState<`0x${string}` | undefined>(undefined);
+  const { isSuccess: isDeploySuccess } = useWaitForTransactionReceipt({ hash: deployTxHash });
   const [showBudget, setShowBudget] = useState(false);
   const [budgetETH, setBudgetETH] = useState<string | null>(null);
   const [budgetUSDC, setBudgetUSDC] = useState<string | null>(null);
@@ -73,11 +74,17 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   const { data: walletClient } = useWalletClient();
   const { address: userAddress, chainId } = useAccount();
 
-  const { data: currentEscrow } = useReadContract({
+  const { data: currentEscrow, refetch: refetchEscrow } = useReadContract({
     address: contractAddress,
     abi: PAYROLL_ABI,
     functionName: "privaraEscrow",
   });
+
+  useEffect(() => {
+    if (isDeploySuccess) {
+      refetchEscrow();
+    }
+  }, [isDeploySuccess, refetchEscrow]);
 
   const hasEscrow = currentEscrow && currentEscrow !== "0x0000000000000000000000000000000000000000";
 
@@ -107,7 +114,8 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
         ],
       });
       console.log("Deploy tx:", hash);
-      alert("DeFi Escrow deployed and linked successfully!");
+      setDeployTxHash(hash); // Track the hash here!
+      alert("DeFi Escrow deploying, please wait for confirmation...");
     } catch (e) { 
       console.error(e); 
     }
@@ -313,11 +321,7 @@ function EscrowManagement({ contractAddress }: { contractAddress: `0x${string}` 
   );
 }
 
-// ──────────────────────────────────────────────
-// 2. Add Employee Form (Updated for Flow Rates)
-// ──────────────────────────────────────────────
-function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: number, contractAddress: `0x${string}` }) {
-  const [address, setAddress] = useState("");
+function AddEmployeeForm({ employeeCount, contractAddress, onSuccess }: { employeeCount: number, contractAddress: `0x${string}`, onSuccess: () => void }) {  const [address, setAddress] = useState("");
   const [salary, setSalary] = useState("");
   const [currency, setCurrency] = useState<"0" | "1">("0");
   const [status, setStatus] = useState<TxStatus>("idle");
@@ -329,7 +333,13 @@ function AddEmployeeForm({ employeeCount, contractAddress }: { employeeCount: nu
 
   const { writeContractAsync } = useWriteContract();
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined);
-  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  useEffect(() => {
+    if (isSuccess) {
+      onSuccess();
+    }
+  }, [isSuccess, onSuccess]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -620,7 +630,7 @@ function EmployerUnwrapCard({ connectedAddress }: { connectedAddress?: string })
   const [unwrapAmount, setUnwrapAmount] = useState("");
 
   const { writeContractAsync } = useWriteContract();
-  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { address: userAddress, chainId } = useAccount();
@@ -636,6 +646,13 @@ function EmployerUnwrapCard({ connectedAddress }: { connectedAddress?: string })
     args: connectedAddress ? [connectedAddress as `0x${string}`] : undefined,
     query: { enabled: !!connectedAddress },
   });
+  
+  useEffect(() => {
+    if (isSuccess) {
+      refetchBalance();
+      setStatus("idle");
+    }
+  }, [isSuccess, refetchBalance]);
 
   const handleRevealBalance = async () => {
     if (showBalance) { setShowBalance(false); setDecryptedBalance(null); return; }
@@ -686,9 +703,15 @@ function EmployerUnwrapCard({ connectedAddress }: { connectedAddress?: string })
         gas: BigInt(8000000)
       });
       
-      setTxHash(hash); setStatus("success"); setUnwrapAmount(""); setShowBalance(false); setDecryptedBalance(null);
-      setTimeout(() => { setStatus("idle"); refetchBalance(); }, 5000);
-    } catch (err) { setStatus("error"); console.error(err); setTimeout(() => setStatus("idle"), 4000); }
+      setTxHash(hash); 
+      setUnwrapAmount(""); 
+      setShowBalance(false); 
+      setDecryptedBalance(null);
+    } catch (err) { 
+      setStatus("error"); 
+      console.error(err); 
+      setTimeout(() => setStatus("idle"), 4000); 
+    }
   };
 
   const isLoading = status === "pending" || isConfirming;
@@ -804,7 +827,11 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: React.ElementTyp
 
 // Main Dashboard Export
 export default function EmployerDashboard({ contractAddress }: EmployerDashboardProps) {
-  const { data: employees } = useReadContract({ address: contractAddress, abi: PAYROLL_ABI, functionName: "getEmployees" });
+  const { data: employees, refetch: refetchEmployees } = useReadContract({ 
+    address: contractAddress, 
+    abi: PAYROLL_ABI, 
+    functionName: "getEmployees" 
+  });
   const { address: userAddress } = useAccount();
   const employeeList = (employees as `0x${string}`[] | undefined) ?? [];
 
@@ -819,7 +846,11 @@ export default function EmployerDashboard({ contractAddress }: EmployerDashboard
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AddEmployeeForm employeeCount={employeeList.length} contractAddress={contractAddress} />
+        <AddEmployeeForm 
+          employeeCount={employeeList.length} 
+          contractAddress={contractAddress} 
+          onSuccess={refetchEmployees} // Add this prop
+        />
         <StreamingOverviewCard contractAddress={contractAddress} />
       </div>
 

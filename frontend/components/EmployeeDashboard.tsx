@@ -320,8 +320,7 @@ function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: s
   const [unwrapAmount, setUnwrapAmount] = useState("");
 
   const { writeContractAsync } = useWriteContract();
-  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
-  const publicClient = usePublicClient();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });  const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { address: userAddress, chainId } = useAccount();
 
@@ -337,6 +336,13 @@ function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: s
     args: connectedAddress ? [connectedAddress as `0x${string}`] : undefined,
     query: { enabled: !!connectedAddress && isRegistered },
   });
+
+  useEffect(() => {
+    if (isSuccess) {
+      refetchBalance();
+      setStatus("idle");
+    }
+  }, [isSuccess, refetchBalance]);
 
   const handleRevealBalance = async () => {
     if (showBalance) { setShowBalance(false); setDecryptedBalance(null); return; }
@@ -389,9 +395,15 @@ function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: s
         gas: BigInt(8000000)
       });
       
-      setTxHash(hash); setStatus("success"); setUnwrapAmount(""); setShowBalance(false); setDecryptedBalance(null);
-      setTimeout(() => { setStatus("idle"); refetchBalance(); }, 5000);
-    } catch (err) { setStatus("error"); console.error(err); setTimeout(() => setStatus("idle"), 4000); }
+      setTxHash(hash); 
+      setUnwrapAmount(""); 
+      setShowBalance(false); 
+      setDecryptedBalance(null);
+    } catch (err) { 
+      setStatus("error"); 
+      console.error(err); 
+      setTimeout(() => setStatus("idle"), 4000); 
+    }
   };
 
   const isLoading = status === "pending" || isConfirming;
