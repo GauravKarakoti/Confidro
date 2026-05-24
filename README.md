@@ -1,11 +1,11 @@
-# Confidro — Encrypted Payroll & Confidential Payment Protocol
+# Confidro — Encrypted Streaming Payroll & Confidential Payment Protocol
 
 [![Built with Fhenix](https://img.shields.io/badge/Built%20with-Fhenix-5A29E4)](https://fhenix.io)
 [![Privara SDK](https://img.shields.io/badge/Privara-SDK-0A5C3E)](https://reineira.xyz)
 
-**On-chain payroll that keeps salaries private — because your team's earnings shouldn't be public ledger data.**
+**On-chain streaming payroll that keeps salaries private — because your team's earnings shouldn't be public ledger data.**
 
-Confidro is a privacy-preserving payroll protocol that enables organizations to run fully on-chain payroll with complete confidentiality. Using Fhenix's Fully Homomorphic Encryption (FHE), salary amounts remain encrypted throughout computation, while compliance officers can view aggregated totals for tax reporting.
+Confidro is a privacy-preserving payroll protocol that enables organizations to stream salaries fully on-chain with complete confidentiality. Using Fhenix's Fully Homomorphic Encryption (FHE), salary flow rates remain encrypted throughout computation. Employees can dynamically route their encrypted streams into DeFi yield protocols (Aave, Compound, Curve, Uniswap) without exposing their balances, and issue temporary, granular permits for income verification.
 
 ---
 
@@ -16,15 +16,8 @@ Confidro is a privacy-preserving payroll protocol that enables organizations to 
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Environment Setup](#environment-setup)
-  - [Local Development](#local-development)
-  - [Testing](#testing)
-  - [Deployment](#deployment)
 - [Smart Contracts](#smart-contracts)
-- [Client Integration](#client-integration)
-- [Security & Permissions](#security--permissions)
+- [Granular Permissions & Verifiable Income](#granular-permissions--verifiable-income)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
@@ -34,35 +27,30 @@ Confidro is a privacy-preserving payroll protocol that enables organizations to 
 
 ## Overview
 
-Confidro solves a fundamental problem in on-chain finance: **transparent payroll**.
+Confidro solves two fundamental problems in on-chain finance: **transparent payroll** and **capital inefficiency**.
 
-Public blockchains expose every transaction. When you pay employees in crypto, their exact salary becomes visible to competitors, front-runners, and the entire world. This isn't just a privacy violation — it's a business risk.
+Public blockchains expose every transaction. When you pay employees in crypto, their exact salary becomes visible. Furthermore, standard payroll systems pay out bi-weekly, leaving capital idle. 
 
-Confidro leverages **Fully Homomorphic Encryption (FHE)** via **Fhenix** to enable:
+Confidro leverages **Fully Homomorphic Encryption (FHE)** via **Fhenix** and **Cross-chain Escrow** via **Privara** to enable:
 
-- ✅ **Encrypted salary amounts** — stored and processed without decryption
-- ✅ **Selective disclosure** — employees see their own salary; compliance sees totals
-- ✅ **MEV protection** — encrypted mempool prevents front-running
-- ✅ **Institutional compliance & Forensics** — graph-based AML protections and audit trails without exposing individual data
-- ✅ **Cross-chain settlement** — via Privara SDK for multi-chain payroll
-- ✅ **Confidential AI DeFi Agents** — opt-in automated yield generation powered by Groq
+- ✅ **Encrypted streaming salaries** — stored and streamed as `euint64` flow rates.
+- ✅ **Multi-Currency Support** — stream in ETH or USDC.
+- ✅ **Confidential Yield Routing** — opt-in automated yield generation routing directly into Aave, Compound, Uniswap, and Curve.
+- ✅ **Verifiable Income** — employees can issue time-bound permits for third parties (like landlords or banks) to verify their encrypted income.
+- ✅ **MEV protection** — encrypted mempool prevents front-running.
+- ✅ **Institutional compliance** — aggregated totals for tax reporting without exposing individual data.
 
 ## Problem Statement
 
-### The Transparency Tax
+### The Transparency Tax & Idle Capital
 
-Public blockchains made transparency the default. That transparency enabled trustless systems — but it also created hard limits on what you can build.
+Public blockchains made transparency the default, which created hard limits on what you can build. 
 
-| Problem | Impact |
-|---|---|
-| **Public salaries** | Competitors poach top talent; employee morale suffers |
-| **MEV exposure** | Payroll transactions can be front-run or analyzed |
-| **Institutional blockers** | Compliance teams reject transparent payroll systems |
-| **Regulatory friction** | GDPR/CCPA violations from public PII exposure |
-
-> "Major players evaluating on-chain infrastructure won't deploy on transparent rails. Compliance won't allow it." — *Fhenix Buildathon Brief*
-
-Confidro removes these barriers by making payroll **confidential by design**.
+| Problem | Impact | Confidro Solution |
+|---|---|---|
+| **Public salaries** | Competitors poach top talent; employee morale suffers | Homomorphic encryption hides salary flow rates entirely. |
+| **Capital Inefficiency**| Employees wait weeks for paychecks, missing out on DeFi yields | Streaming salaries + stealth auto-routing to Aave/Compound. |
+| **Income Verification**| ZK proofs are complex and hard for traditional auditors to verify | Time-bound read permits generated via `grantIncomeViewPermit`. |
 
 ### High-Level Flow
 ```text
@@ -80,49 +68,40 @@ Confidro removes these barriers by making payroll **confidential by design**.
 └─────────────┘ └─────────────┘ └─────────────────┘
 ```
 
-### Step-by-Step
+### Step-by-Step Flow
 
-1. **Employer Setup** — Employer registers employees (wallet addresses + encrypted salary amounts)
-2. **Encryption** — Salary values are encrypted client-side using `@cofhe/sdk` before submission
-3. **Storage** — Contract stores `euint64` values (encrypted uint64) — never plaintext
-4. **Payroll Processing** — Employer triggers `processPayroll()`; contract uses FHE to compute total without decryption
-5. **Settlement** — Privara SDK handles cross-chain settlement and finality
-6. **Employee Claim** — Employee submits decryption permit to view and withdraw their salary
-7. **Compliance View** — Authorized auditors can request aggregated totals (selective disclosure)
+1. **Employer Setup** — Registers employee wallets, setting their currency (ETH/USDC) and encrypted flow rates (tokens per second).
+2. **Encryption** — Values are encrypted client-side using `@cofhe/sdk`.
+3. **Yield Configuration** — Employees set their target DeFi allocations (e.g., 50% Aave, 50% Curve) via `updateYieldRouting()`.
+4. **Continuous Streaming** — Salaries accrue in real-time. The contract computes amounts homomorphically based on elapsed time.
+5. **Claim & Route** — Employee calls `claimStream()`. The `ConfidroEscrow` automatically splits and routes the claimed amount to the designated yield wrappers.
+6. **Income Verification** — Employee generates a time-bound permit for a third party to decrypt their flow rate.
 
 ## Architecture
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│ Frontend (Next.js) │
-│ ┌──────────────┐ ┌──────────────┐ ┌──────────────────────┐ │
-│ │ useEncrypt │ │ useWrite │ │ useDecrypt │ │
-│ │ (@cofhe/sdk/web)│ │ (wagmi) │ │ (@cofhe/sdk/web) │ │
-│ └──────┬───────┘ └──────┬───────┘ └──────────┬───────────┘ │
-└─────────┼──────────────────┼─────────────────────┼───────────────┘
-│ │ │
-▼ ▼ ▼
+│ Frontend (Next.js + Wagmi + Groq SDK)                           │
+│ • Dashboard • Yield Allocation Strategy • Permit Management     │
+└─────────┼──────────────────┼─────────────────────┼──────────────┘
+          │                  │                     │
+          ▼                  ▼                     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ @cofhe/sdk (Client SDK) │
-│ • Encryption/decryption • Permit management • Key generation │
+│ @cofhe/sdk (Client SDK)                                         │
+│ • Client-side encryption & decryption of flow rates / yields    │
 └─────────────────────────────────────────────────────────────────┘
-│
-▼
+          │
+          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ CoFHE Coprocessor │
-│ • Task Manager • Slim Listener • Result Processor • FHEOS │
-└─────────────────────────────────────────────────────────────────┘
-│
-▼
-┌─────────────────────────────────────────────────────────────────┐
-│ ConfidroPayroll.sol (Solidity) │
-│ • euint64 salary storage • FHE.add() • FHE.allowThis/Sender │
-└─────────────────────────────────────────────────────────────────┘
-│
-▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Privara SDK (@reineira-os/sdk) │
-│ • Cross-chain settlement • Escrow management • Finality │
-└─────────────────────────────────────────────────────────────────┘
+│ ConfidroPayroll.sol (Core)                                      │
+│ • streaming rates (euint64) • time delta math • view permits    │
+└─────────┬────────────────────────────────────────┬──────────────┘
+          │                                        │
+          ▼                                        ▼
+┌─────────────────────────┐              ┌─────────────────────────┐
+│ ConfidroEscrow.sol      │              │ Privara SDK             │
+│ • Yield Wrappers        │◀────────────▶│ • Escrow management     │
+│ • Aave/Comp/Uni/Curve   │              │ • Cross-chain actions   │
+└─────────────────────────┘              └─────────────────────────┘
 ```
 
 ## Tech Stack
@@ -135,6 +114,7 @@ Confidro removes these barriers by making payroll **confidential by design**.
 | **Encryption** | Fhenix CoFHE + FHE.sol | Fully Homomorphic Encryption |
 | **Smart Contracts** | Solidity ^0.8.24 | FHE-enabled contract logic |
 | **Client SDK** | @cofhe/sdk | Client-side encryption/decryption |
+| **DeFi Integrations** | Aave, Compound, Uniswap, Curve (via FHERC20Wrappers) | Yield Pools |
 | **AI Processing** | Groq API | Ultra-fast reasoning for DeFi yield allocation |
 | **Settlement** | @reineira-os/sdk (Privara) | Cross-chain payment finality |
 | **Dev Environment** | Hardhat + cofhe-hardhat-plugin | Local testing & deployment |
@@ -142,9 +122,7 @@ Confidro removes these barriers by making payroll **confidential by design**.
 
 ### Supported Networks
 
-- **Base Sepolia** — Primary testnet (lowest gas costs)[reference:6]
-- **Arbitrum Sepolia** — Secondary testnet[reference:7]
-- **Ethereum Sepolia** — Ethereum testnet[reference:8]
+- **Base Sepolia** — Primary testnet (lowest gas costs)
 
 ## Getting Started
 
@@ -176,18 +154,6 @@ PRIVATE_KEY=your_private_key_here
 BASE_SEPOLIA_RPC_URL=https://sepolia-rollup.base.io/rpc
 ```
 
-### Local Development
-```bash
-# Start local Hardhat network with FHE mocks
-pnpm chain:start
-
-# Deploy mock contracts
-pnpm deploy:mock
-
-# Run local node
-pnpm dev
-```
-
 ### Testing
 ```bash
 # Run all tests with local FHE mocks
@@ -207,55 +173,63 @@ pnpm deploy --network baseSepolia
 
 # Verify on Arbiscan
 pnpm verify --network baseSepolia <CONTRACT_ADDRESS>
-
-# Deploy using reineira-code
-npm run deploy
 ```
 
 ## Smart Contracts
 ### ConfidroPayroll.sol
+The contract uses FHE to manage streaming payroll and yield allocations without decrypting the underlying values.
 ```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
-
 import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 contract ConfidroPayroll {
-    mapping(address => euint64) public salaries;  // Encrypted salary per employee
-    euint64 public totalPayroll;                  // Encrypted total
-    mapping(address => bool) public isCompliance; // Compliance officers
-    
-    event EmployeeAdded(address indexed employee, euint64 encryptedSalary);
-    event PayrollProcessed(uint256 timestamp);
-    
-    function addEmployee(address employee, euint64 encryptedSalary) public onlyOwner {
-        salaries[employee] = encryptedSalary;
-        totalPayroll = FHE.add(totalPayroll, encryptedSalary);
-        FHE.allowThis(totalPayroll);
-        FHE.allowSender(totalPayroll);
-        emit EmployeeAdded(employee, encryptedSalary);
+    // STREAMING + MULTICURRENCY SUPPORT
+    mapping(address => euint64) public encryptedFlowRates;
+    mapping(address => uint256) public lastUpdateTimes;
+    mapping(address => uint8) public paymentCurrency; // 0 = ETH, 1 = USDC
+
+    // AI DEFI AGENT ROUTING STATE (0-100 Encrypted Percentages)
+    mapping(address => euint64) public aaveAllocations;
+    mapping(address => euint64) public compoundAllocations;
+    mapping(address => euint64) public uniswapAllocations;
+    mapping(address => euint64) public curveAllocations;
+
+    // View Permits for Verifiable Income
+    struct ViewPermit {
+        uint256 expiryTimestamp;
+        bool isActive;
     }
-    
-    function processPayroll() public onlyOwner {
-        // Encrypted operations — amounts never decrypted
-        // Total computed homomorphically
+    mapping(address => mapping(address => ViewPermit)) public viewPermits;
+
+    function claimStream() public {
+        uint256 timeDelta = block.timestamp - lastUpdateTimes[msg.sender];
+        euint64 streamedAmount = FHE.mul(encryptedFlowRates[msg.sender], FHE.asEuint64(timeDelta));
         
-        // Settlement handled via Privara SDK
-        _settlePayroll();
-        
-        emit PayrollProcessed(block.timestamp);
+        // Pass stream to escrow for yield distribution
+        IPrivaraEscrow(privaraEscrow).distribute(
+            msg.sender, streamedAmount, paymentCurrency[msg.sender], 
+            aaveAllocations[msg.sender], compoundAllocations[msg.sender], 
+            uniswapAllocations[msg.sender], curveAllocations[msg.sender]
+        );
     }
+}
+```
+
+### Granular Permissions & Verifiable Income
+Confidro replaces vulnerable plaintext income verification (e.g., sending bank statements to landlords) with Encrypted View Permits. Employees can grant specific third parties temporary access to decrypt their salary.
+```solidity
+// Employee generates a 30-day permit for a landlord/auditor
+function grantIncomeViewPermit(address thirdParty, uint256 durationInSeconds) external {
+    uint256 expiry = block.timestamp + durationInSeconds;
+    viewPermits[msg.sender][thirdParty] = ViewPermit(expiry, true);
     
-    function withdrawSalary() public {
-        euint64 salary = salaries[msg.sender];
-        require(FHE.decrypt(salary) > 0, "No salary to withdraw");
-        
-        // Transfer funds
-        _transferFunds(msg.sender, salary);
-        
-        // Clear salary after withdrawal
-        delete salaries[msg.sender];
-    }
+    FHE.allow(encryptedFlowRates[msg.sender], thirdParty);
+}
+
+// Auditor securely views the encrypted flow rate
+function verifyEmployeeIncome(address employee) external view returns (euint64) {
+    ViewPermit memory permit = viewPermits[employee][msg.sender];
+    require(permit.isActive && block.timestamp < permit.expiryTimestamp, "Permit invalid");
+    return encryptedFlowRates[employee];
 }
 ```
 
@@ -263,57 +237,8 @@ contract ConfidroPayroll {
 | Operation | Function | Use Case |
 |-----------|----------|----------|
 | Encrypted addition | FHE.add(a, b) | Accumulating payroll totals |
-| Encrypted comparison | FHE.lt(a, b) | Treasury sufficiency checks |
+| Encrypted comparison | FHE.lte(a, b) | Treasury sufficiency checks |
 | Access control | FHE.allowThis() | Contract access to encrypted values |
-| Access control | FHE.allowSender() | User access to their own data |
-
-## Client Integration
-### React Component Example
-```tsx
-import { useEncrypt, useDecrypt } from '@cofhe/sdk/web';
-import { useWriteContract } from 'wagmi';
-
-export function PayrollForm() {
-  const { encrypt, encryptedData, isEncrypting } = useEncrypt();
-  const { writeContract } = useWriteContract();
-  
-  const handleSubmit = async (salary: number) => {
-    // Encrypt salary client-side
-    const encrypted = await encrypt(salary);
-    
-    // Submit to contract (still encrypted)
-    writeContract({
-      address: payrollAddress,
-      abi: payrollAbi,
-      functionName: 'addEmployee',
-      args: [employeeAddress, encrypted]
-    });
-  };
-  
-  return (/* UI */);
-}
-```
-
-### Privara Settlement Example
-```typescript
-import { ReineiraSDK } from '@reineira-os/sdk';
-
-const sdk = ReineiraSDK.create({
-  network: 'testnet',
-  privateKey: process.env.PRIVATE_KEY,
-  rpcUrl: process.env.BASE_SEPOLIA_RPC,
-  onFHEInit: (status) => console.log('FHE:', status)
-});
-
-// Create escrow for payroll settlement
-const escrow = await sdk.escrow.create({
-  amount: sdk.usdc(50000),
-  owner: payrollContractAddress
-});
-
-// Fund with auto-approval
-await escrow.fund(sdk.usdc(50000), { autoApprove: true });
-```
 
 ## Security & Permissions
 ### Access Control Model
@@ -339,56 +264,30 @@ await escrow.fund(sdk.usdc(50000), { autoApprove: true });
 // Allow contract to access encrypted value
 FHE.allowThis(encryptedValue);
 
-// Allow transaction sender to access
-FHE.allowSender(encryptedValue);
-
 // Allow specific address (compliance officer)
 FHE.allow(encryptedValue, complianceAddress);
 ```
 
 ## Roadmap
 ### ✅ Completed
-- Core `ConfidroPayroll.sol` smart contract
-- FHE integration with euint64 types
-- Client-side encryption/decryption (@cofhe/sdk)
-- Privara cross-chain settlement
-- Test suite with local FHE mocks
-- Deployment to Base Sepolia
+- Core ConfidroPayroll.sol and ConfidroEscrow.sol contracts.
+- Streaming Payroll with dynamic time-delta calculation using FHE.
+- Multi-token support (USDC, ETH).
+- Automated Yield Routing into Aave, Compound, Uniswap, and Curve.
+- Verifiable Income: Granular permission granting and revocation (grantIncomeViewPermit).
+- Privara cross-chain settlement integration.
+- Graph-Based Compliance Forensics: Anti-money laundering (AML) protections enabling anomaly detection on encrypted financial graphs.
+- Autonomous Encrypted Agents (Powered by Groq) in the frontend for intelligent yield rebalancing.
 
-### 🚧 In Progress
-- Compliance dashboard with selective disclosure
-- Multi-token support (USDC, USDT, DAI)
-- Automated tax withholding resolvers
-
-### 🚀 Planned (Enterprise & AI Expansion)
-#### Wave 5
-- **Autonomous Encrypted Agents (Powered by Groq):** Opt-in automation layer allowing employees to deploy personal AI agents. Leveraging Groq for ultra-fast reasoning, these agents will analyze market sentiment and dynamically allocate accrued streaming yield into risk-adjusted DeFi pools without requiring manual unwrapping of encrypted salaries.
-- **Graph-Based Compliance Forensics:** Robust anti-money laundering (AML) protections enabling enterprise-grade auditing and anomaly detection on encrypted financial graphs.
-
+### 🚀 Planned
 #### Post Buildation
-- **DAO governance module for contributor payroll**
-- **ZK-proofs for regulatory reporting**
-- **Cross-chain payroll (Ethereum -> Arbitrum -> Base)**
-
-## Development Workflow
-### Using reineira-code for Development
-```bash
-# Generate a new condition resolver
-/new-resolver A resolver that verifies payroll tax withholding
-
-# Audit your contract for security
-/audit
-
-# Generate SDK integration code
-/integrate
-```
+- DAO governance module for contributor payroll.
+- ZK-proofs for regulatory reporting to complement FHE.
+- Expansion to Arbitrum and Ethereum via Privara cross-chain messaging.
 
 ## Acknowledgments
-- Fhenix Team — For building the CoFHE coprocessor and making FHE accessible to Solidity developers
-- Privara (ReineiraOS) — For cross-chain settlement infrastructure
-- Zama — For FHE cryptography research and tooling
-- ETHGlobal — For inspiring the sealed-bid auction patterns that influenced our encrypted comparison logic
-- Awesome Fhenix — For curated resources and examples
+- Fhenix Team — For building the CoFHE coprocessor and making FHE accessible to Solidity developers.
+- Privara (ReineiraOS) — For cross-chain settlement infrastructure.
 
 ## 📞 Contact & Support
 - Documentation: [docs.fhenix.io](https://docs.fhenix.io/)
