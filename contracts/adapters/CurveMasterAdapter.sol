@@ -10,38 +10,46 @@ interface ICurvePool {
 }
 
 contract CurveMasterAdapter is ERC20 {
-    address public usdc;
-    address public curvePool;
+    address public immutable usdc;
+    address public immutable weth;
+    address public immutable curvePoolUSDC;
+    address public immutable curvePoolWETH;
 
-    // Issue receipt tokens: "Confidro Curve USDC"
-    constructor(address _usdc, address _curvePool) ERC20("Confidro Curve USDC Receipt", "ccUSDC") {
+    // Issue generic receipt tokens: "Confidro Curve Receipt"
+    constructor(
+        address _usdc, 
+        address _weth, 
+        address _curvePoolUSDC, 
+        address _curvePoolWETH
+    ) ERC20("Confidro Curve Receipt", "ccToken") {
         usdc = _usdc;
-        curvePool = _curvePool;
-    }
-
-    // Override decimals to match USDC (6 decimals) instead of the default 18
-    function decimals() public view virtual override returns (uint8) {
-        return 6;
+        weth = _weth;
+        curvePoolUSDC = _curvePoolUSDC;
+        curvePoolWETH = _curvePoolWETH;
     }
 
     function supply(address asset, uint256 amount) external {
-        require(asset == usdc, "Unsupported asset");
+        require(asset == usdc || asset == weth, "Unsupported asset");
         
-        // 1. Transfer the USDC from the caller (ConfidroEscrow) to this adapter
+        // 1. Transfer the asset from the caller (ConfidroEscrow) to this adapter
         IERC20(asset).transferFrom(msg.sender, address(this), amount);
 
-        // 2. Approve the actual Curve pool to spend the adapter's USDC
-        IERC20(asset).approve(curvePool, amount);
-        
-        // 3. Set up the deposit array (assuming a standard 2-pool where USDC is index 0)
+        // Set up the deposit array (assuming standard 2-pools where the asset is index 0)
         uint256[2] memory amounts;
         amounts[0] = amount; 
         amounts[1] = 0;
 
-        // 4. Deposit into the Curve pool (min_mint_amount set to 0 for simplicity/testing)
-        ICurvePool(curvePool).add_liquidity(amounts, 0);
+        if (asset == usdc) {
+            // 2a. Approve and deposit into the USDC Curve pool
+            IERC20(asset).approve(curvePoolUSDC, amount);
+            ICurvePool(curvePoolUSDC).add_liquidity(amounts, 0);
+        } else if (asset == weth) {
+            // 2b. Approve and deposit into the WETH Curve pool
+            IERC20(asset).approve(curvePoolWETH, amount);
+            ICurvePool(curvePoolWETH).add_liquidity(amounts, 0);
+        }
 
-        // 5. Mint 1:1 receipt tokens back to the caller so the FHE Wrapper can wrap them
+        // 3. Mint 1:1 receipt tokens back to the caller so the FHE Wrapper can wrap them
         _mint(msg.sender, amount);
     }
 }

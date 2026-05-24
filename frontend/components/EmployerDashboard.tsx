@@ -501,16 +501,16 @@ function StreamingOverviewCard({ contractAddress }: { contractAddress: `0x${stri
 
         try {
             [resETH, resUSDC] = await Promise.all([
-                client.decryptForView(encETH, FheTypes.Uint64).withPermit(permit).execute(),
-                client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute()
+                encETH !== BigInt(0) ? client.decryptForView(encETH, FheTypes.Uint64).withPermit(permit).execute() : Promise.resolve(BigInt(0)),
+                encUSDC !== BigInt(0) ? client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute() : Promise.resolve(BigInt(0))
             ]);
         } catch (err: any) {
             if (err.message?.toLowerCase().includes("expired")) {
                 client.permits.removeActivePermit(chainId, userAddress);
                 permit = await client.permits.getOrCreateSelfPermit(chainId, userAddress);
                 [resETH, resUSDC] = await Promise.all([
-                    client.decryptForView(encETH, FheTypes.Uint64).withPermit(permit).execute(),
-                    client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute()
+                    encETH !== BigInt(0) ? client.decryptForView(encETH, FheTypes.Uint64).withPermit(permit).execute() : Promise.resolve(BigInt(0)),
+                    encUSDC !== BigInt(0) ? client.decryptForView(encUSDC, FheTypes.Uint64).withPermit(permit).execute() : Promise.resolve(BigInt(0))
                 ]);
             } else { throw err; }
         }
@@ -665,8 +665,8 @@ function EmployerUnwrapCard({ connectedAddress }: { connectedAddress?: string })
         } else { throw err; }
       }
         
-      const decimals = currency === "USDC" ? 1e6 : 1e18;
-      setDecryptedBalance(Number(result) / decimals); 
+      const decimals = currency === "USDC" ? 6 : 18;
+      setDecryptedBalance(Number(formatUnits(result as bigint, decimals)));
       setShowBalance(true);
     } catch (err) { console.error(err); } finally { setIsDecrypting(false); }
   };

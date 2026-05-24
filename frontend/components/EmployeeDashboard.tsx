@@ -37,7 +37,7 @@ import {
   AAVE_WRAPPER_USDC, COMP_WRAPPER_USDC, UNI_WRAPPER_USDC, CURVE_WRAPPER_USDC 
 } from "@/lib/contract";
 import { baseSepolia } from "@cofhe/sdk/chains";
-import { parseUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 
 function EmployeeRow({ address, index, isYou }: { address: string; index: number; isYou: boolean }) {
   const short = `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -58,10 +58,14 @@ function EmployeeRow({ address, index, isYou }: { address: string; index: number
 }
 
 function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
-  const [risk, setRisk] = useState('Low Risk (Stablecoins Only)');
+  const [risk, setRisk] = useState('Low Risk (Stablecoins Only, Aave/Compound)');
   const [strategy, setStrategy] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+
+  // --- NEW: Track Active Deployed Strategy ---
+  const [activeStrategy, setActiveStrategy] = useState<Record<string, number> | null>(null);
+  const [activeRisk, setActiveRisk] = useState<string | null>(null);
 
   // Wagmi Hooks for Execution
   const { writeContractAsync } = useWriteContract();
@@ -69,8 +73,26 @@ function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
   const { data: walletClient } = useWalletClient();
   const { address: userAddress, chainId } = useAccount();
 
+  // --- NEW: Load saved strategy on mount ---
+  useEffect(() => {
+    if (userAddress) {
+      const saved = localStorage.getItem(`confidro_agent_${userAddress}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setActiveStrategy(parsed.strategy);
+          setActiveRisk(parsed.risk);
+          setRisk(parsed.risk); // Sync dropdown with current active risk
+        } catch (e) {
+          console.error("Failed to parse cached strategy", e);
+        }
+      }
+    }
+  }, [userAddress]);
+
   const deployAgent = async () => {
     setLoading(true);
+    setStrategy(null); // Clear any pending strategy before fetching a new one
     try {
         const res = await fetch('/api/agent', {
             method: 'POST',
@@ -84,7 +106,7 @@ function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
     } catch (e) {
         console.warn("API route not found, using mock fallback...", e);
         setTimeout(() => {
-          setStrategy({ "aave": 40, "compound": 60, "uniswap": 0 });
+          setStrategy({ "aave": 40, "compound": 60, "uniswap": 0, "curve": 0 });
         }, 2000);
     } finally {
         setLoading(false);
@@ -99,7 +121,7 @@ function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         throw new Error("Wallet not connected.");
       }
 
-      // 1. Initialize FHE Client
+      // Initialize FHE Client
       const cofheWeb = await import("@cofhe/sdk/web");
       const cofheCore = await import("@cofhe/sdk");
       const { createCofheConfig, createCofheClient } = cofheWeb;
@@ -109,8 +131,6 @@ function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
       const client = await createCofheClient(config);
       await client.connect(publicClient, walletClient);
 
-      // 2. Encrypt strategy allocations
-      // Assumes your contract accepts allocations in a fixed order (e.g., Aave, Compound, Uniswap. Curve)
       const aaveAlloc = strategy.aave || 0;
       const compAlloc = strategy.compound || 0;
       const uniAlloc = strategy.uniswap || 0;
@@ -123,7 +143,6 @@ function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         Encryptable.uint64(BigInt(curveAlloc)),
       ]).execute();
 
-      // Map to the EncryptedInput struct format expected by your contract
       const formattedInputs = encryptedInputs.map(res => ({
         ctHash: res.ctHash,
         securityZone: res.securityZone,
@@ -131,8 +150,7 @@ function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         signature: res.signature as `0x${string}`,
       }));
 
-      // 3. Execute Contract Call
-      // Update "updateYieldRouting" to whatever your routing function is named in PAYROLL_ABI
+      // Execute Contract Call
       const txHash = await writeContractAsync({
         address: contractAddress,
         abi: PAYROLL_ABI,
@@ -141,6 +159,11 @@ function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
         gas: BigInt(8000000)
       });
       
+      // --- NEW: Save active strategy after successful execution ---
+      localStorage.setItem(`confidro_agent_${userAddress}`, JSON.stringify({ risk, strategy }));
+      setActiveStrategy(strategy);
+      setActiveRisk(risk);
+
       alert(`FHE Permit Signed! Successfully routed encrypted yield across: ${Object.keys(strategy).join(', ')}. Tx: ${txHash}`);
       setStrategy(null); 
     } catch (error: any) {
@@ -173,8 +196,36 @@ function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
       </p>
 
       <div className="space-y-4 relative z-10">
+        
+        {/* --- NEW: Active Strategy Display --- */}
+        {activeStrategy && (
+          <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-blue-400 flex items-center gap-1"><CheckCircle2 size={12}/> Active Routing</span>
+              <span className="text-[10px] text-blue-300/70 truncate max-w-[120px]">{activeRisk}</span>
+            </div>
+            <div className="space-y-1.5">
+              {Object.entries(activeStrategy).map(([pool, alloc]) => (
+                alloc > 0 && (
+                  <div key={pool} className="flex justify-between items-center text-xs">
+                    <span className="text-slate-300 capitalize">{pool}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 bg-slate-800 rounded-full h-1">
+                        <div className="bg-blue-400 h-1 rounded-full" style={{ width: `${alloc}%` }}></div>
+                      </div>
+                      <span className="text-blue-300 font-mono w-6 text-right">{alloc}%</span>
+                    </div>
+                  </div>
+                )
+              ))}
+            </div>
+          </div>
+        )}
+
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-2">Target Risk Profile</label>
+          <label className="block text-xs font-medium text-slate-400 mb-2">
+            {activeStrategy ? "Select Target Risk to Update" : "Target Risk Profile"}
+          </label>
           <select 
             value={risk} 
             onChange={(e) => setRisk(e.target.value)}
@@ -194,14 +245,14 @@ function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
           {loading ? (
             <><Loader2 size={16} className="animate-spin" /> Agent Analyzing Markets...</>
           ) : (
-            <><Bot size={16} /> Deploy Groq Agent</>
+            <><Bot size={16} /> {activeStrategy ? "Update Strategy via Groq" : "Deploy Groq Agent"}</>
           )}
         </button>
 
         <AnimatePresence>
           {strategy && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="pt-4 border-t border-slate-700/50">
-              <p className="text-xs font-bold text-white mb-3">Optimal Encrypted Routing:</p>
+              <p className="text-xs font-bold text-white mb-3">Proposed Encrypted Routing:</p>
               <div className="space-y-2 mb-4">
                 {Object.entries(strategy).map(([pool, allocation]) => (
                   <div key={pool} className="flex justify-between items-center bg-slate-900/50 p-2 rounded-lg border border-white/5">
@@ -234,7 +285,7 @@ function AIAgentCard({ contractAddress }: { contractAddress: `0x${string}` }) {
       </div>
     </div>
   );
-}
+} 
 
 function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: string; isRegistered: boolean }) {
   const [currency, setCurrency] = useState<"USDC" | "ETH">("USDC");
@@ -316,8 +367,8 @@ function WithdrawCard({ connectedAddress, isRegistered }: { connectedAddress?: s
         } else { throw err; }
       }
         
-      const decimals = currency === "USDC" ? 1e6 : 1e18;
-      setDecryptedBalance(Number(result) / decimals); 
+      const decimals = currency === "USDC" ? 6 : 18;
+      setDecryptedBalance(Number(formatUnits(result as bigint, decimals)));
       setShowBalance(true);
     } catch (err) { console.error(err); } finally { setIsDecrypting(false); }
   };

@@ -10,57 +10,53 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
 
     const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; 
     const BASE_SEPOLIA_WETH = "0x4200000000000000000000000000000000000006";
-    const UNI_ROUTER = "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4";
-    const UNI_POSITION_MANAGER = "0x27F971cb582BF9E50F397e4d29a5C7A34f11faA2";
+    // const UNI_ROUTER = "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4";
+    // const UNI_POSITION_MANAGER = "0x27F971cb582BF9E50F397e4d29a5C7A34f11faA2";
 
-    const UniswapAdapterVault = await ethers.getContractFactory('UniswapAdapterVault');
+    // const UniswapAdapterVault = await ethers.getContractFactory('UniswapAdapterVault');
     
-    // 1. Deploy Base Adapters for Uniswap
-    console.log("Deploying Uniswap Vault Adapters...");
-    const uniAdapterUSDC = await UniswapAdapterVault.deploy(
-        "Confidro UniV3 USDC Receipt", "cuUSDC",
-        BASE_SEPOLIA_USDC, BASE_SEPOLIA_WETH, UNI_ROUTER, UNI_POSITION_MANAGER
-    );
-    await uniAdapterUSDC.waitForDeployment();
+    // console.log("Deploying Uniswap Vault Adapters...");
+    // const uniAdapterUSDC = await UniswapAdapterVault.deploy(
+    //     "Confidro UniV3 USDC Receipt", "cuUSDC",
+    //     BASE_SEPOLIA_USDC, BASE_SEPOLIA_WETH, UNI_ROUTER, UNI_POSITION_MANAGER
+    // );
+    // await uniAdapterUSDC.waitForDeployment();
     
-    const uniAdapterWETH = await UniswapAdapterVault.deploy(
-        "Confidro UniV3 WETH Receipt", "cuWETH",
-        BASE_SEPOLIA_WETH, BASE_SEPOLIA_USDC, UNI_ROUTER, UNI_POSITION_MANAGER
-    );
-    await uniAdapterWETH.waitForDeployment();
+    // const uniAdapterWETH = await UniswapAdapterVault.deploy(
+    //     "Confidro UniV3 WETH Receipt", "cuWETH",
+    //     BASE_SEPOLIA_WETH, BASE_SEPOLIA_USDC, UNI_ROUTER, UNI_POSITION_MANAGER
+    // );
+    // await uniAdapterWETH.waitForDeployment();
 
-    console.log(`Uni USDC Adapter: ${uniAdapterUSDC.target}`);
-    console.log(`Uni WETH Adapter: ${uniAdapterWETH.target}`);
+    // console.log(`Uni USDC Adapter: ${uniAdapterUSDC.target}`);
+    // console.log(`Uni WETH Adapter: ${uniAdapterWETH.target}`);
 
-    saveDeployment(network.name, 'UniAdapterUSDC', await uniAdapterUSDC.getAddress())
-    saveDeployment(network.name, 'UniAdapterWETH', await uniAdapterWETH.getAddress())
+    // saveDeployment(network.name, 'UniAdapterUSDC', await uniAdapterUSDC.getAddress())
+    // saveDeployment(network.name, 'UniAdapterWETH', await uniAdapterWETH.getAddress())
 
-    // 2. Deploy Uniswap Master Adapter
-    console.log("Deploying Uniswap Master Adapter...");
-    const UniswapMasterAdapter = await ethers.getContractFactory('UniswapMasterAdapter');
-    const uniMasterAdapter = await UniswapMasterAdapter.deploy(
-        BASE_SEPOLIA_USDC, BASE_SEPOLIA_WETH, uniAdapterUSDC.target, uniAdapterWETH.target
-    );
-    await uniMasterAdapter.waitForDeployment();
-    console.log(`Uni Master Adapter: ${uniMasterAdapter.target}`);
+    // console.log("Deploying Uniswap Master Adapter...");
+    // const UniswapMasterAdapter = await ethers.getContractFactory('UniswapMasterAdapter');
+    // const uniMasterAdapter = await UniswapMasterAdapter.deploy(
+    //     BASE_SEPOLIA_USDC, BASE_SEPOLIA_WETH, uniAdapterUSDC.target, uniAdapterWETH.target
+    // );
+    // await uniMasterAdapter.waitForDeployment();
+    // console.log(`Uni Master Adapter: ${uniMasterAdapter.target}`);
     
-    saveDeployment(network.name, 'UniswapMasterAdapter', await uniMasterAdapter.getAddress())
+    // saveDeployment(network.name, 'UniswapMasterAdapter', await uniMasterAdapter.getAddress())
 
-    // 3. Deploy Compound Master Adapter
-    const COMP_CUSDCV3 = "0x571621Ce60Cebb0c1D442B5afb38B1663C6Bf017"; 
-    const COMP_CWETHV3 = "0x61490650AbaA31393464C3f34E8B29cd1C44118E";
+    // const COMP_CUSDCV3 = "0x571621Ce60Cebb0c1D442B5afb38B1663C6Bf017"; 
+    // const COMP_CWETHV3 = "0x61490650AbaA31393464C3f34E8B29cd1C44118E";
 
-    console.log("Deploying Compound Master Adapter...");
-    const CompoundMasterAdapter = await ethers.getContractFactory('CompoundMasterAdapter');
-    const compAdapter = await CompoundMasterAdapter.deploy(
-        BASE_SEPOLIA_USDC, BASE_SEPOLIA_WETH, COMP_CUSDCV3, COMP_CWETHV3
-    );
-    await compAdapter.waitForDeployment();
-    console.log(`Compound Master Adapter: ${compAdapter.target}`);
+    // console.log("Deploying Compound Master Adapter...");
+    // const CompoundMasterAdapter = await ethers.getContractFactory('CompoundMasterAdapter');
+    // const compAdapter = await CompoundMasterAdapter.deploy(
+    //     BASE_SEPOLIA_USDC, BASE_SEPOLIA_WETH, COMP_CUSDCV3, COMP_CWETHV3
+    // );
+    // await compAdapter.waitForDeployment();
+    // console.log(`Compound Master Adapter: ${compAdapter.target}`);
 
-    saveDeployment(network.name, 'CompoundMasterAdapter', await compAdapter.getAddress())
+    // saveDeployment(network.name, 'CompoundMasterAdapter', await compAdapter.getAddress())
 
-    // 4. Deploy Curve Master Adapter
     console.log("Deploying Curve Master Adapter...");
     const CURVE_ADDRESS_PROVIDER = "0x0000000022D53366457F9d5E68Ec105046FC4383";
     const providerAbi = ["function get_address(uint256 id) view returns (address)"];
@@ -80,42 +76,43 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
 
     if (curvePoolAddress === ethers.ZeroAddress) {
         console.log("No live Curve pool found on Base Sepolia. Using a mock/placeholder address for testing...");
-        // Placeholder address to allow deployment testing to succeed if the testnet pool is missing
         curvePoolAddress = "0x1111111111111111111111111111111111111111"; 
     } else {
         console.log(`Live Curve Pool found at: ${curvePoolAddress}`);
     }
 
     const CurveMasterAdapter = await ethers.getContractFactory('CurveMasterAdapter');
-    const curveAdapter = await CurveMasterAdapter.deploy(BASE_SEPOLIA_USDC, curvePoolAddress);
+    
+    const curveAdapter = await CurveMasterAdapter.deploy(
+        BASE_SEPOLIA_USDC, 
+        BASE_SEPOLIA_WETH, 
+        curvePoolAddress,
+        curvePoolAddress
+    );
     await curveAdapter.waitForDeployment();
     console.log(`Curve Master Adapter: ${curveAdapter.target}`);
 
     saveDeployment(network.name, 'CurveMasterAdapter', await curveAdapter.getAddress())
 
-    // 5. Deploy FHE Wrappers
     console.log("Deploying FHE Wrappers for Uniswap, Compound, & Curve...");
     const FHERC20Wrapper = await ethers.getContractFactory('FHERC20Wrapper');
     
-    // Uniswap Wrappers
-    const wrapperUniUSDC = await FHERC20Wrapper.deploy(uniAdapterUSDC.target, 6, false);
-    await wrapperUniUSDC.waitForDeployment();
-    const wrapperUniWETH = await FHERC20Wrapper.deploy(uniAdapterWETH.target, 18, true);
-    await wrapperUniWETH.waitForDeployment();
+    // const wrapperUniUSDC = await FHERC20Wrapper.deploy(uniAdapterUSDC.target, 6, false);
+    // await wrapperUniUSDC.waitForDeployment();
+    // const wrapperUniWETH = await FHERC20Wrapper.deploy(uniAdapterWETH.target, 18, true);
+    // await wrapperUniWETH.waitForDeployment();
 
-    saveDeployment(network.name, 'WrapperUniUSDC', await wrapperUniUSDC.getAddress())
-    saveDeployment(network.name, 'WrapperUniWETH', await wrapperUniWETH.getAddress())
+    // saveDeployment(network.name, 'WrapperUniUSDC', await wrapperUniUSDC.getAddress())
+    // saveDeployment(network.name, 'WrapperUniWETH', await wrapperUniWETH.getAddress())
 
-    // Compound Wrappers
-    const wrapperCompUSDC = await FHERC20Wrapper.deploy(COMP_CUSDCV3, 6, false);
-    await wrapperCompUSDC.waitForDeployment();
-    const wrapperCompWETH = await FHERC20Wrapper.deploy(COMP_CWETHV3, 18, true);
-    await wrapperCompWETH.waitForDeployment();
+    // const wrapperCompUSDC = await FHERC20Wrapper.deploy(COMP_CUSDCV3, 6, false);
+    // await wrapperCompUSDC.waitForDeployment();
+    // const wrapperCompWETH = await FHERC20Wrapper.deploy(COMP_CWETHV3, 18, true);
+    // await wrapperCompWETH.waitForDeployment();
 
-    saveDeployment(network.name, 'WrapperCompUSDC', await wrapperCompUSDC.getAddress())
-    saveDeployment(network.name, 'WrapperCompWETH', await wrapperCompWETH.getAddress())
+    // saveDeployment(network.name, 'WrapperCompUSDC', await wrapperCompUSDC.getAddress())
+    // saveDeployment(network.name, 'WrapperCompWETH', await wrapperCompWETH.getAddress())
 
-    // Curve Wrappers
     const wrapperCurveUSDC = await FHERC20Wrapper.deploy(curveAdapter.target, 6, false);
     await wrapperCurveUSDC.waitForDeployment();
     const wrapperCurveWETH = await FHERC20Wrapper.deploy(curveAdapter.target, 18, true);
@@ -125,27 +122,25 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
     saveDeployment(network.name, 'WrapperCurveWETH', await wrapperCurveWETH.getAddress())
 
 
-    // 6. Deploy Real Aave FHE Wrappers
-    console.log("Deploying FHE Wrappers using Real Aave V3 aTokens...");
+    // console.log("Deploying FHE Wrappers using Real Aave V3 aTokens...");
     
-    const aWETHAddress = AaveV3BaseSepolia.ASSETS.WETH.A_TOKEN;
-    const aUSDCAddress = AaveV3BaseSepolia.ASSETS.USDC.A_TOKEN;
-    const aavePoolAddress = AaveV3BaseSepolia.POOL;
+    // const aWETHAddress = AaveV3BaseSepolia.ASSETS.WETH.A_TOKEN;
+    // const aUSDCAddress = AaveV3BaseSepolia.ASSETS.USDC.A_TOKEN;
+    // const aavePoolAddress = AaveV3BaseSepolia.POOL;
     
-    console.log(`Live Aave Pool configured at: ${aavePoolAddress}`);
+    // console.log(`Live Aave Pool configured at: ${aavePoolAddress}`);
 
-    const wrapperAaveETH = await FHERC20Wrapper.deploy(aWETHAddress, 18, true);
-    await wrapperAaveETH.waitForDeployment();
+    // const wrapperAaveETH = await FHERC20Wrapper.deploy(aWETHAddress, 18, true);
+    // await wrapperAaveETH.waitForDeployment();
     
-    const wrapperAaveUSDC = await FHERC20Wrapper.deploy(aUSDCAddress, 6, false);
-    await wrapperAaveUSDC.waitForDeployment();
+    // const wrapperAaveUSDC = await FHERC20Wrapper.deploy(aUSDCAddress, 6, false);
+    // await wrapperAaveUSDC.waitForDeployment();
 
-    console.log(`WrapperAaveETH: ${wrapperAaveETH.target} | WrapperAaveUSDC: ${wrapperAaveUSDC.target}`);
+    // console.log(`WrapperAaveETH: ${wrapperAaveETH.target} | WrapperAaveUSDC: ${wrapperAaveUSDC.target}`);
 
-    saveDeployment(network.name, 'WrapperAaveETH', await wrapperAaveETH.getAddress())
-    saveDeployment(network.name, 'WrapperAaveUSDC', await wrapperAaveUSDC.getAddress())
+    // saveDeployment(network.name, 'WrapperAaveETH', await wrapperAaveETH.getAddress())
+    // saveDeployment(network.name, 'WrapperAaveUSDC', await wrapperAaveUSDC.getAddress())
 
-    // 7. Deploy Factory
     console.log("Deploying Confidro Payroll Factory...");
     const ConfidroPayrollFactory = await ethers.getContractFactory('ConfidroPayrollFactory')
     const payrollFactory = await ConfidroPayrollFactory.deploy()
@@ -155,19 +150,19 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
     saveDeployment(network.name, 'ConfidroPayrollFactory', await payrollFactory.getAddress())
 
     return {
-        AavePool: aavePoolAddress,
-        WrapperAaveETH: wrapperAaveETH.target,
-        WrapperAaveUSDC: wrapperAaveUSDC.target,
+        // AavePool: aavePoolAddress,
+        // WrapperAaveETH: wrapperAaveETH.target,
+        // WrapperAaveUSDC: wrapperAaveUSDC.target,
 
-        UniAdapterUSDC: uniAdapterUSDC.target,
-        UniAdapterWETH: uniAdapterWETH.target,
-        UniswapMasterAdapter: uniMasterAdapter.target,
-        WrapperUniUSDC: wrapperUniUSDC.target,
-        WrapperUniWETH: wrapperUniWETH.target,
+        // UniAdapterUSDC: uniAdapterUSDC.target,
+        // UniAdapterWETH: uniAdapterWETH.target,
+        // UniswapMasterAdapter: uniMasterAdapter.target,
+        // WrapperUniUSDC: wrapperUniUSDC.target,
+        // WrapperUniWETH: wrapperUniWETH.target,
 
-        CompAdapter: compAdapter.target,
-        WrapperCompUSDC: wrapperCompUSDC.target,
-        WrapperCompWETH: wrapperCompWETH.target,
+        // CompAdapter: compAdapter.target,
+        // WrapperCompUSDC: wrapperCompUSDC.target,
+        // WrapperCompWETH: wrapperCompWETH.target,
 
         CurveAdapter: curveAdapter.target,
         WrapperCurveUSDC: wrapperCurveUSDC.target,

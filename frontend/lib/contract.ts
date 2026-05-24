@@ -3,9 +3,9 @@ import { AaveV3BaseSepolia } from "@aave-dao/aave-address-book";
 export const FACTORY_CONTRACT_ADDRESS = 
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`);
 
-export const CURVE_POOL_ADDRESS = "0x467F65a765311240C7D6F750c55c909394cAade9" as `0x${string}`;
-export const CURVE_WRAPPER_USDC = "0x02776DCd70fBf64c14771A6C004ddB0bC8D77A35" as `0x${string}`;
-export const CURVE_WRAPPER_ETH = "0x03a181fC5DF7BBc0f3d50308069563511c174e4d" as `0x${string}`;
+export const CURVE_POOL_ADDRESS = "0x52bccF5e806Fec709bC8c01deA9db24CAf86D3eb" as `0x${string}`;
+export const CURVE_WRAPPER_USDC = "0x30be18292213AA9084160DbbaCC735bbbF07c7A9" as `0x${string}`;
+export const CURVE_WRAPPER_ETH = "0xC07613F05f0A4929b3b1C5f2299858d392c1Ff55" as `0x${string}`;
 
 export const COMP_POOL_ADDRESS = "0xb9CD99f55b1baF27C048898eAa3679D105Fe9e0B" as `0x${string}`;
 export const COMP_WRAPPER_USDC = "0xd80f4B7D30d43117AF82Ce57A955Ec77fF282b06" as `0x${string}`;
