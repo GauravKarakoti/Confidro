@@ -5,32 +5,19 @@ import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-// 1. Add the IWETH interface at the top
-interface IWETH {
-    function deposit() external payable;
-    function withdraw(uint wad) external;
-}
-
 contract FHERC20Wrapper {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable underlying;
     uint8 public immutable decimals;
-    
-    // 2. Add an indicator for WETH
-    bool public immutable isWETH; 
 
     mapping(address => euint64) internal _balances;
     mapping(address => mapping(address => uint256)) public allowances;
 
-    // 3. Add receive function so the contract can receive native ETH from WETH unwrapping
-    receive() external payable {}
-
-    // 4. Update the constructor to accept the isWETH flag
-    constructor(address _underlying, uint8 _decimals, bool _isWETH) {
+    // We removed the isWETH flag to treat all underlying assets as standard ERC20s.
+    constructor(address _underlying, uint8 _decimals) {
         underlying = IERC20(_underlying);
         decimals = _decimals;
-        isWETH = _isWETH;
     }
 
     function wrap(uint256 amount) external {
@@ -58,17 +45,8 @@ contract FHERC20Wrapper {
         FHE.allowThis(_balances[msg.sender]);
         FHE.allow(_balances[msg.sender], msg.sender);
 
-        // 5. Update the withdrawal logic based on the token type
-        if (isWETH) {
-            // Convert WETH to native ETH
-            IWETH(address(underlying)).withdraw(amount);
-            // Send native ETH to the user
-            (bool success, ) = msg.sender.call{value: amount}("");
-            require(success, "ETH transfer failed");
-        } else {
-            // Standard ERC20 transfer for tokens like USDC
-            underlying.safeTransfer(msg.sender, amount);
-        }
+        // Safely transfer the underlying ERC20 (whether it's USDC, WETH, aWETH, or cuWETH)
+        underlying.safeTransfer(msg.sender, amount);
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {
@@ -94,7 +72,7 @@ contract FHERC20Wrapper {
     }
 
     function _transfer(address from, address to, euint64 amount) internal {
-        // FIX: Ensure 'from' balance is initialized before passing to FHE.lte to prevent panic
+        // Ensure 'from' balance is initialized before passing to FHE.lte to prevent panic
         if (!FHE.isInitialized(_balances[from])) {
             _balances[from] = FHE.asEuint64(0);
         }

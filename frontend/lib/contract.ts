@@ -3,21 +3,21 @@ import { AaveV3BaseSepolia } from "@aave-dao/aave-address-book";
 export const FACTORY_CONTRACT_ADDRESS = 
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`);
 
-export const CURVE_POOL_ADDRESS = "0x4C69A54C64e7Fd453cFF52D2BD9BA483cE990Bbc" as `0x${string}`;
-export const CURVE_WRAPPER_USDC = "0x122B60a9558FBdE3ea7a8522b48e8F191887ED0a" as `0x${string}`;
-export const CURVE_WRAPPER_ETH = "0x4d16a811D37F5ddcb3eD118D54Cb295eA62207aB" as `0x${string}`;
+export const CURVE_POOL_ADDRESS = "0x04E8D501F47C54CffE769d6359Ff367C19eab21B" as `0x${string}`;
+export const CURVE_WRAPPER_USDC = "0xBc48Ad03B779e8bAb4dEd2e80fCB28Eb8de1A4B5" as `0x${string}`;
+export const CURVE_WRAPPER_ETH = "0xF8241c5B9A1781bbE33193e86Af01c9Ee8fd1411" as `0x${string}`;
 
-export const COMP_POOL_ADDRESS = "0xb9CD99f55b1baF27C048898eAa3679D105Fe9e0B" as `0x${string}`;
-export const COMP_WRAPPER_USDC = "0xd80f4B7D30d43117AF82Ce57A955Ec77fF282b06" as `0x${string}`;
-export const COMP_WRAPPER_ETH = "0x4C0Cb8ABb5BD3ab83949c09b90b0D51448CbF2fB" as `0x${string}`;
+export const COMP_POOL_ADDRESS = "0x2d7a18D969fe95B0603208c670Bd92E963dB4C05" as `0x${string}`;
+export const COMP_WRAPPER_USDC = "0xc65f607107f15B2Fc2e2A52F8088B551DeD2aD45" as `0x${string}`;
+export const COMP_WRAPPER_ETH = "0xdFd3c91BF1DdF214C5e6e008E7ec8db5Aae7F035" as `0x${string}`;
 
-export const UNI_POOL_ADDRESS = "0x762211066CCaeeD0c2Af657507DCb9E910BA7b43" as `0x${string}`;
-export const UNI_WRAPPER_USDC = "0xe391CBe4655D181059eED54711dAC50750f37dd0" as `0x${string}`;
-export const UNI_WRAPPER_ETH = "0x4aD9383e97CfEC2025e0D07124849715F84A24ff" as `0x${string}`;
+export const UNI_POOL_ADDRESS = "0xF989FeE296F94224A713fA247b2C0ec1576b1C17" as `0x${string}`;
+export const UNI_WRAPPER_USDC = "0xfd27830143b1131F9ceDF4201a143D4d6dF29c6f" as `0x${string}`;
+export const UNI_WRAPPER_ETH = "0x4e2E1822bd697CeD823E183eb7769335b16f9a97" as `0x${string}`;
 
 export const AAVE_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
-export const AAVE_WRAPPER_USDC = "0xD5fD5b3636984B286800954318475BC1aC1C2b3D" as `0x${string}`;
-export const AAVE_WRAPPER_ETH = "0x13E918B97cDB98df3695FcdCE19C1fbaE5b9b2eE" as `0x${string}`;
+export const AAVE_WRAPPER_USDC = "0x436Ed18eD232905D40a0B0D5879179b04C73B5b5" as `0x${string}`;
+export const AAVE_WRAPPER_ETH = "0x89CBD4e87baDAd535120dC70507ff62326515d08" as `0x${string}`;
 
 export const WETH_ADDRESS = "0x4200000000000000000000000000000000000006" as `0x${string}`;
 export const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`;

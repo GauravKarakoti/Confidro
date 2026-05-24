@@ -118,16 +118,32 @@ contract ConfidroEscrow {
             IERC20(usdcAddress).transferFrom(msg.sender, address(this), amount);
         }
 
-        // 1. Aave 
+        // 1. Aave (with try/catch fallback to Compound)
         address aaveUnd = wrappers.aave.underlying();
         uint256 aaveBalBefore = IERC20(aaveUnd).balanceOf(address(this));
         IERC20(underlying).approve(address(aavePool), splitAmount);
-        aavePool.supply(underlying, splitAmount, address(this), 0);
-        uint256 aaveMinted = IERC20(aaveUnd).balanceOf(address(this)) - aaveBalBefore;
-        IERC20(aaveUnd).approve(address(wrappers.aave), aaveMinted);
-        wrappers.aave.wrap(aaveMinted);
+        
+        try aavePool.supply(underlying, splitAmount, address(this), 0) {
+            uint256 aaveMinted = IERC20(aaveUnd).balanceOf(address(this)) - aaveBalBefore;
+            IERC20(aaveUnd).approve(address(wrappers.aave), aaveMinted);
+            wrappers.aave.wrap(aaveMinted);
+        } catch {
+            // Fallback: Aave cap reached or reverted. Revoke approval.
+            IERC20(underlying).approve(address(aavePool), 0);
+            
+            // Route Aave's 25% share to Compound instead
+            address compUndFb = wrappers.comp.underlying();
+            uint256 compBalBeforeFb = IERC20(compUndFb).balanceOf(address(this));
+            
+            IERC20(underlying).approve(address(compPool), splitAmount);
+            compPool.supply(underlying, splitAmount);
+            
+            uint256 compMintedFb = IERC20(compUndFb).balanceOf(address(this)) - compBalBeforeFb;
+            IERC20(compUndFb).approve(address(wrappers.comp), compMintedFb);
+            wrappers.comp.wrap(compMintedFb);
+        }
 
-        // 2. Compound
+        // 2. Compound (Processes its normal 25% allocation)
         address compUnd = wrappers.comp.underlying();
         uint256 compBalBefore = IERC20(compUnd).balanceOf(address(this));
         IERC20(underlying).approve(address(compPool), splitAmount);

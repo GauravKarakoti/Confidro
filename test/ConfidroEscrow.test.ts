@@ -13,6 +13,12 @@ describe("ConfidroEscrow", function () {
   let wethMock: any;
   let usdcMock: any;
   
+  // Hoisted mock variables so we can assert their balances in the tests
+  let aaveMock: any;
+  let compMock: any;
+  let uniMock: any;
+  let curveMock: any;
+
   let yieldPools: any[] = [];
   let ethWrappers: any[] = [];
   let usdcWrappers: any[] = [];
@@ -34,16 +40,14 @@ describe("ConfidroEscrow", function () {
     const aWethMock = await MockERC20.deploy("Mock aWETH", "aWETH", 18);
     const aUsdcMock = await MockERC20.deploy("Mock aUSDC", "aUSDC", 6);
 
-    // 2. Deploy Yield Mocks (using EscrowMocks versions to simulate Master Adapters)
+    // 2. Deploy Yield Mocks
     const MockAavePool = await ethers.getContractFactory("contracts/mocks/MockAavePool.sol:MockAavePool");
     const MockGenericYieldPool = await ethers.getContractFactory("contracts/mocks/EscrowMocks.sol:MockGenericYieldPool");
     
-    const aaveMock = await MockAavePool.deploy();
-    
-    // In these tests, the Master Adapters are simulated by MockGenericYieldPools
-    const compMock = await MockGenericYieldPool.deploy();
-    const uniMock = await MockGenericYieldPool.deploy();
-    const curveMock = await MockGenericYieldPool.deploy();
+    aaveMock = await MockAavePool.deploy();
+    compMock = await MockGenericYieldPool.deploy();
+    uniMock = await MockGenericYieldPool.deploy();
+    curveMock = await MockGenericYieldPool.deploy();
 
     // Deploy simulated receipt tokens for the Master Adapters
     const cWethMock = await MockERC20.deploy("Mock cWETH", "cWETH", 18);
@@ -75,7 +79,6 @@ describe("ConfidroEscrow", function () {
     ethWrappers = [];
     usdcWrappers = [];
     for (let i = 0; i < 4; i++) {
-        // Pass the Receipt Token to the FHE Wrapper
         const fEth = await MockFHEWrapper.deploy(ethReceipts[i]);
         const fUsdc = await MockFHEWrapper.deploy(usdcReceipts[i]);
         
@@ -121,20 +124,60 @@ describe("ConfidroEscrow", function () {
     await usdcMock.mint(employerAddress, depositAmount);
     await usdcMock.connect(employer).approve(escrow.target, depositAmount);
 
-    // This will now successfully evaluate the dynamic balance measurements in Escrow
-    await expect(escrow.connect(employer).depositTokens(depositAmount, 1))
+    // FIX: Cast to any to bypass BaseContract strict typing
+    await expect((escrow.connect(employer) as any).depositTokens(depositAmount, 1))
       .not.to.be.reverted;
+
+    // Verify a standard 25/25/25/25 split success
+    expect(await usdcMock.balanceOf(aaveMock.target)).to.equal(ethers.parseUnits("25", 6));
+    expect(await usdcMock.balanceOf(compMock.target)).to.equal(ethers.parseUnits("25", 6));
+  });
+
+  it("Should route Aave's allocation to Compound if Aave pool reverts (Testnet Fallback logic)", async function () {
+    // FIX: Instead of a random EOA wallet, use a deployed contract that lacks the supply() method (like usdcMock). 
+    // This satisfies Solidity's extcodesize check and forces a true execution revert that try/catch can handle.
+    const failingAaveAddress = usdcMock.target; 
+    
+    const failingYieldPools = [failingAaveAddress, compMock.target, uniMock.target, curveMock.target];
+    
+    const ConfidroEscrow = await ethers.getContractFactory("ConfidroEscrow");
+    const failingEscrow = await ConfidroEscrow.deploy(
+        await owner.getAddress(),
+        mockPayroll.target,
+        wethMock.target,
+        usdcMock.target,
+        failingYieldPools,                         
+        ethWrappers.map(w => w.target),     
+        usdcWrappers.map(w => w.target)     
+    );
+
+    const depositAmount = ethers.parseUnits("100", 6);
+    const employerAddress = await employer.getAddress();
+
+    await usdcMock.mint(employerAddress, depositAmount);
+    await usdcMock.connect(employer).approve(failingEscrow.target, depositAmount);
+
+    // Ensure the deposit does NOT revert, because the try/catch protects it
+    await expect((failingEscrow.connect(employer) as any).depositTokens(depositAmount, 1))
+      .not.to.be.reverted;
+
+    // Aave should have received 0, Compound gets its own 25% + Aave's 25% (50%), Uni/Curve get 25%
+    expect(await usdcMock.balanceOf(compMock.target)).to.equal(ethers.parseUnits("50", 6));
+    expect(await usdcMock.balanceOf(uniMock.target)).to.equal(ethers.parseUnits("25", 6));
+    expect(await usdcMock.balanceOf(curveMock.target)).to.equal(ethers.parseUnits("25", 6));
   });
 
   it("Should allow the owner to withdraw wrapped ETH successfully", async function () {
     const withdrawAmount = ethers.parseEther("0.05");
-    await expect(escrow.connect(owner).withdrawTokens(withdrawAmount, 0))
+    // FIX: Cast to any to bypass BaseContract strict typing
+    await expect((escrow.connect(owner) as any).withdrawTokens(withdrawAmount, 0))
       .to.not.be.reverted;
   });
 
   it("Should revert if a non-owner tries to withdraw", async function () {
     const withdrawAmount = ethers.parseEther("0.05");
-    await expect(escrow.connect(employee1).withdrawTokens(withdrawAmount, 0))
+    // FIX: Cast to any to bypass BaseContract strict typing
+    await expect((escrow.connect(employee1) as any).withdrawTokens(withdrawAmount, 0))
       .to.be.revertedWith("Only owner can call this");
   });
 });
