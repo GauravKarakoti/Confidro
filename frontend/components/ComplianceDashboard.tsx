@@ -69,9 +69,12 @@ export default function ComplianceDashboard({ contractAddress }: { contractAddre
         }
       }
 
-      // Format with correct decimals based on the token
-      setDecryptedETH(formatUnits(resETH, 18));
-      setDecryptedUSDC(formatUnits(resUSDC, 6));
+      const SECONDS_PER_MONTH = BigInt(2592000); 
+      
+      // 2. Convert the per-second flow rate to a monthly total, then format
+      setDecryptedETH(formatUnits(resETH * SECONDS_PER_MONTH, 18));
+      setDecryptedUSDC(formatUnits(resUSDC * SECONDS_PER_MONTH, 6));
+      
     } catch (err) {
       console.error("Compliance decryption failed", err);
     } finally {
@@ -175,14 +178,14 @@ export default function ComplianceDashboard({ contractAddress }: { contractAddre
                   <h1 className="text-4xl sm:text-5xl font-bold text-blue-400 mb-1 font-display">
                     {Number(decryptedETH)} <span className="text-xl sm:text-2xl text-blue-400/50">ETH</span>
                   </h1>
-                  <p className="text-sm text-slate-500">ETH Liability</p>
+                  <p className="text-sm text-slate-500">Monthly ETH Liability</p>
                 </div>
                 <div className="hidden sm:block w-px h-16 bg-slate-700"></div>
                 <div className="text-center">
                   <h1 className="text-4xl sm:text-5xl font-bold text-emerald-400 mb-1 font-display">
                     ${Number(decryptedUSDC)}
                   </h1>
-                  <p className="text-sm text-slate-500">USDC Liability</p>
+                  <p className="text-sm text-slate-500">Monthly USDC Liability</p>
                 </div>
               </div>
               <p className="text-sm text-slate-500">Decrypted securely via FHE</p>
