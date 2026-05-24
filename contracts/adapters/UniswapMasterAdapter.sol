@@ -24,19 +24,25 @@ contract UniswapMasterAdapter {
         // 1. Pull the asset (USDC or WETH) from ConfidroEscrow
         IERC20(asset).transferFrom(msg.sender, address(this), amount);
 
-        // 2. Route to the correct Uniswap Adapter Vault
+        // 2. Route to the correct Uniswap Adapter Vault and measure exact output
         if (asset == usdc) {
+            uint256 balBefore = IERC20(uniVaultUSDC).balanceOf(address(this));
+            
             IERC20(asset).approve(uniVaultUSDC, amount);
             IUniswapAdapterVault(uniVaultUSDC).supply(asset, amount);
             
-            // 3. The vault mints receipt tokens to this Master Adapter. 
-            // Transfer them back to the Escrow so they can be wrapped.
-            IERC20(uniVaultUSDC).transfer(msg.sender, amount);
+            uint256 minted = IERC20(uniVaultUSDC).balanceOf(address(this)) - balBefore;
+            IERC20(uniVaultUSDC).transfer(msg.sender, minted);
+            
         } else if (asset == weth) {
+            uint256 balBefore = IERC20(uniVaultWETH).balanceOf(address(this));
+            
             IERC20(asset).approve(uniVaultWETH, amount);
             IUniswapAdapterVault(uniVaultWETH).supply(asset, amount);
             
-            IERC20(uniVaultWETH).transfer(msg.sender, amount);
+            uint256 minted = IERC20(uniVaultWETH).balanceOf(address(this)) - balBefore;
+            IERC20(uniVaultWETH).transfer(msg.sender, minted);
+            
         } else {
             revert("Unsupported asset");
         }

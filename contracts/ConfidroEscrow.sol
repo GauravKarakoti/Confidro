@@ -6,6 +6,7 @@ import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 interface IERC20 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function approve(address spender, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
 }
 
 interface IWETH {
@@ -105,9 +106,7 @@ contract ConfidroEscrow {
         require(amount > 0, "Amount must be greater than 0");
         require(currency == 0 || currency == 1, "Invalid currency");
         
-        // Split deposit across the 4 protocols in plaintext to maintain liquid balances
         uint256 splitAmount = amount / 4;
-
         address underlying = currency == 0 ? wethAddress : usdcAddress;
         YieldWrappers memory wrappers = currency == 0 ? ethWrappers : usdcWrappers;
 
@@ -120,28 +119,40 @@ contract ConfidroEscrow {
         }
 
         // 1. Aave 
+        address aaveUnd = wrappers.aave.underlying();
+        uint256 aaveBalBefore = IERC20(aaveUnd).balanceOf(address(this));
         IERC20(underlying).approve(address(aavePool), splitAmount);
         aavePool.supply(underlying, splitAmount, address(this), 0);
-        IERC20(wrappers.aave.underlying()).approve(address(wrappers.aave), splitAmount);
-        wrappers.aave.wrap(splitAmount);
+        uint256 aaveMinted = IERC20(aaveUnd).balanceOf(address(this)) - aaveBalBefore;
+        IERC20(aaveUnd).approve(address(wrappers.aave), aaveMinted);
+        wrappers.aave.wrap(aaveMinted);
 
         // 2. Compound
+        address compUnd = wrappers.comp.underlying();
+        uint256 compBalBefore = IERC20(compUnd).balanceOf(address(this));
         IERC20(underlying).approve(address(compPool), splitAmount);
         compPool.supply(underlying, splitAmount);
-        IERC20(wrappers.comp.underlying()).approve(address(wrappers.comp), splitAmount);
-        wrappers.comp.wrap(splitAmount);
+        uint256 compMinted = IERC20(compUnd).balanceOf(address(this)) - compBalBefore;
+        IERC20(compUnd).approve(address(wrappers.comp), compMinted);
+        wrappers.comp.wrap(compMinted);
 
         // 3. Uniswap 
+        address uniUnd = wrappers.uni.underlying();
+        uint256 uniBalBefore = IERC20(uniUnd).balanceOf(address(this));
         IERC20(underlying).approve(address(uniPool), splitAmount);
         uniPool.supply(underlying, splitAmount);
-        IERC20(wrappers.uni.underlying()).approve(address(wrappers.uni), splitAmount);
-        wrappers.uni.wrap(splitAmount);
+        uint256 uniMinted = IERC20(uniUnd).balanceOf(address(this)) - uniBalBefore;
+        IERC20(uniUnd).approve(address(wrappers.uni), uniMinted);
+        wrappers.uni.wrap(uniMinted);
 
         // 4. Curve
+        address curveUnd = wrappers.curve.underlying();
+        uint256 curveBalBefore = IERC20(curveUnd).balanceOf(address(this));
         IERC20(underlying).approve(address(curvePool), splitAmount);
         curvePool.supply(underlying, splitAmount);
-        IERC20(wrappers.curve.underlying()).approve(address(wrappers.curve), splitAmount);
-        wrappers.curve.wrap(splitAmount);
+        uint256 curveMinted = IERC20(curveUnd).balanceOf(address(this)) - curveBalBefore;
+        IERC20(curveUnd).approve(address(wrappers.curve), curveMinted);
+        wrappers.curve.wrap(curveMinted);
 
         if (currency == 0) {
             budgetETH = FHE.add(budgetETH, FHE.asEuint64(amount));

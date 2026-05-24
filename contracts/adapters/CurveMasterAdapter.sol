@@ -30,26 +30,29 @@ contract CurveMasterAdapter is ERC20 {
 
     function supply(address asset, uint256 amount) external {
         require(asset == usdc || asset == weth, "Unsupported asset");
-        
+
         // 1. Transfer the asset from the caller (ConfidroEscrow) to this adapter
         IERC20(asset).transferFrom(msg.sender, address(this), amount);
 
-        // Set up the deposit array (assuming standard 2-pools where the asset is index 0)
         uint256[2] memory amounts;
-        amounts[0] = amount; 
-        amounts[1] = 0;
+        uint256 mintedLpAmount;
 
         if (asset == usdc) {
-            // 2a. Approve and deposit into the USDC Curve pool
+            // USDC is at index 0
+            amounts[0] = amount; 
+            amounts[1] = 0;
             IERC20(asset).approve(curvePoolUSDC, amount);
-            ICurvePool(curvePoolUSDC).add_liquidity(amounts, 0);
+            mintedLpAmount = ICurvePool(curvePoolUSDC).add_liquidity(amounts, 0);
+            
         } else if (asset == weth) {
-            // 2b. Approve and deposit into the WETH Curve pool
+            // WETH is at index 1
+            amounts[0] = 0;
+            amounts[1] = amount;
             IERC20(asset).approve(curvePoolWETH, amount);
-            ICurvePool(curvePoolWETH).add_liquidity(amounts, 0);
+            mintedLpAmount = ICurvePool(curvePoolWETH).add_liquidity(amounts, 0);
         }
 
-        // 3. Mint 1:1 receipt tokens back to the caller so the FHE Wrapper can wrap them
-        _mint(msg.sender, amount);
+        // 3. Mint exact received LP equivalent back to the caller
+        _mint(msg.sender, mintedLpAmount);
     }
 }

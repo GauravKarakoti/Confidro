@@ -12,7 +12,7 @@ describe("Master Yield Adapters", function () {
   beforeEach(async function () {
     [owner, user] = await ethers.getSigners();
 
-    const MockERC20 = await ethers.getContractFactory("MockERC20");
+    const MockERC20 = await ethers.getContractFactory("contracts/mocks/EscrowMocks.sol:MockERC20");
     usdcMock = await MockERC20.deploy("Mock USDC", "USDC", 6);
     wethMock = await MockERC20.deploy("Mock WETH", "WETH", 18);
 
@@ -27,7 +27,7 @@ describe("Master Yield Adapters", function () {
     let curveAdapter: any;
 
     beforeEach(async function () {
-      const MockCurvePool = await ethers.getContractFactory("MockCurvePool");
+      const MockCurvePool = await ethers.getContractFactory("contracts/mocks/YieldMocks.sol:MockCurvePool");
       // Deploy mock pools for both USDC and WETH routes
       curvePoolMockUSDC = await MockCurvePool.deploy();
       curvePoolMockWETH = await MockCurvePool.deploy();
@@ -43,43 +43,35 @@ describe("Master Yield Adapters", function () {
 
     it("should deploy as an ERC20 receipt token with standard 18 decimals", async function () {
       expect(await curveAdapter.symbol()).to.equal("ccToken");
-      // Now defaults to 18 to safely accommodate both 6-decimal USDC and 18-decimal WETH balances
       expect(await curveAdapter.decimals()).to.equal(18); 
     });
 
-    it("should supply USDC to Curve pool and mint ccToken receipt tokens", async function () {
+    it("should supply USDC to Curve pool and mint exact ccToken receipt tokens dynamically", async function () {
       const depositAmount = ethers.parseUnits("100", 6);
 
-      // Approve adapter to take USDC (cast to any to bypass BaseContract TS error)
       await (usdcMock.connect(user) as any).approve(curveAdapter.target, depositAmount);
 
-      // Call supply
       await expect((curveAdapter.connect(user) as any).supply(usdcMock.target, depositAmount))
-        .to.emit(curveAdapter, "Transfer") // ERC20 mint event
+        .to.emit(curveAdapter, "Transfer")
         .withArgs(ethers.ZeroAddress, user.address, depositAmount);
 
-      // Check user received ccToken receipt tokens
       expect(await curveAdapter.balanceOf(user.address)).to.equal(depositAmount);
     });
 
-    it("should supply WETH to Curve pool and mint ccToken receipt tokens", async function () {
+    it("should supply WETH to Curve pool and mint exact ccToken receipt tokens dynamically", async function () {
       const depositAmount = ethers.parseEther("100");
 
-      // Approve adapter to take WETH
       await (wethMock.connect(user) as any).approve(curveAdapter.target, depositAmount);
 
-      // Call supply with WETH
       await expect((curveAdapter.connect(user) as any).supply(wethMock.target, depositAmount))
-        .to.emit(curveAdapter, "Transfer") // ERC20 mint event
+        .to.emit(curveAdapter, "Transfer")
         .withArgs(ethers.ZeroAddress, user.address, depositAmount);
 
-      // Check user received ccToken receipt tokens
       expect(await curveAdapter.balanceOf(user.address)).to.equal(depositAmount);
     });
 
     it("should revert if supplying an unsupported asset", async function () {
-      // Deploy a random token to simulate an unsupported asset (since WETH is supported now)
-      const MockERC20 = await ethers.getContractFactory("MockERC20");
+      const MockERC20 = await ethers.getContractFactory("contracts/mocks/EscrowMocks.sol:MockERC20");
       const randomToken = (await MockERC20.deploy("Random", "RND", 18)) as any;
       await randomToken.mint(user.address, ethers.parseEther("10"));
 
@@ -94,13 +86,18 @@ describe("Master Yield Adapters", function () {
   describe("CompoundMasterAdapter & UniswapMasterAdapter", function () {
     let compAdapter: any;
     let uniMasterAdapter: any;
+    let uniVaultUSDC: any;
+    let uniVaultWETH: any;
 
     beforeEach(async function () {
-      const MockERC20 = await ethers.getContractFactory("MockERC20");
+      const MockERC20 = await ethers.getContractFactory("contracts/mocks/EscrowMocks.sol:MockERC20");
       const cUsdcMock = await MockERC20.deploy("Mock cUSDC", "cUSDC", 6);
       const cWethMock = await MockERC20.deploy("Mock cWETH", "cWETH", 18);
-      const uniUsdcMock = await MockERC20.deploy("Mock uniUSDC", "uUSDC", 6);
-      const uniWethMock = await MockERC20.deploy("Mock uniWETH", "uWETH", 18);
+      
+      // Use YieldMocks version because it acts as an ERC20 token that accepts deposits (perfectly mimics an ERC4626 vault)
+      const MockVault = await ethers.getContractFactory("contracts/mocks/YieldMocks.sol:MockGenericYieldPool");
+      uniVaultUSDC = await MockVault.deploy();
+      uniVaultWETH = await MockVault.deploy();
 
       // Deploy Compound Adapter
       const CompoundMasterAdapter = await ethers.getContractFactory("CompoundMasterAdapter");
@@ -111,13 +108,34 @@ describe("Master Yield Adapters", function () {
       // Deploy Uniswap Master Adapter
       const UniswapMasterAdapter = await ethers.getContractFactory("UniswapMasterAdapter");
       uniMasterAdapter = await UniswapMasterAdapter.deploy(
-        usdcMock.target, wethMock.target, uniUsdcMock.target, uniWethMock.target
+        usdcMock.target, wethMock.target, uniVaultUSDC.target, uniVaultWETH.target
       );
     });
 
-    it("should deploy both Compound and Uniswap Master Adapters successfully", async function () {
+    it("should route USDC to Uniswap Vault and return the exact minted vault tokens via dynamic balance check", async function () {
+      const depositAmount = ethers.parseUnits("100", 6);
+      
+      // User approves Master Adapter
+      await (usdcMock.connect(user) as any).approve(uniMasterAdapter.target, depositAmount);
+      
+      // Supply
+      await (uniMasterAdapter.connect(user) as any).supply(usdcMock.target, depositAmount);
+      
+      // The Master adapter transferred the dynamically measured yield tokens safely back to the user
+      expect(await uniVaultUSDC.balanceOf(user.address)).to.equal(depositAmount);
+    });
+
+    it("should route WETH to Uniswap Vault and return the exact minted vault tokens via dynamic balance check", async function () {
+      const depositAmount = ethers.parseEther("100");
+      
+      await (wethMock.connect(user) as any).approve(uniMasterAdapter.target, depositAmount);
+      await (uniMasterAdapter.connect(user) as any).supply(wethMock.target, depositAmount);
+      
+      expect(await uniVaultWETH.balanceOf(user.address)).to.equal(depositAmount);
+    });
+
+    it("should deploy Compound Master Adapter successfully", async function () {
       expect(await compAdapter.getAddress()).to.not.equal(ethers.ZeroAddress);
-      expect(await uniMasterAdapter.getAddress()).to.not.equal(ethers.ZeroAddress);
     });
   });
 });

@@ -10,39 +10,36 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
 
     const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; 
     const BASE_SEPOLIA_WETH = "0x4200000000000000000000000000000000000006";
-    // const UNI_ROUTER = "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4";
-    // const UNI_POSITION_MANAGER = "0x27F971cb582BF9E50F397e4d29a5C7A34f11faA2";
+    const UNI_ROUTER = "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4";
+    const UNI_POSITION_MANAGER = "0x27F971cb582BF9E50F397e4d29a5C7A34f11faA2";
 
-    // const UniswapAdapterVault = await ethers.getContractFactory('UniswapAdapterVault');
+    const UniswapAdapterVault = await ethers.getContractFactory('UniswapAdapterVault');
     
-    // console.log("Deploying Uniswap Vault Adapters...");
-    // const uniAdapterUSDC = await UniswapAdapterVault.deploy(
-    //     "Confidro UniV3 USDC Receipt", "cuUSDC",
-    //     BASE_SEPOLIA_USDC, BASE_SEPOLIA_WETH, UNI_ROUTER, UNI_POSITION_MANAGER
-    // );
-    // await uniAdapterUSDC.waitForDeployment();
+    console.log("Deploying Uniswap Vault Adapters...");
+    const uniAdapterUSDC = await UniswapAdapterVault.deploy(
+        "Confidro UniV3 USDC Receipt", "cuUSDC",
+        BASE_SEPOLIA_USDC, BASE_SEPOLIA_WETH, UNI_ROUTER, UNI_POSITION_MANAGER
+    );
+    await uniAdapterUSDC.waitForDeployment();
     
-    // const uniAdapterWETH = await UniswapAdapterVault.deploy(
-    //     "Confidro UniV3 WETH Receipt", "cuWETH",
-    //     BASE_SEPOLIA_WETH, BASE_SEPOLIA_USDC, UNI_ROUTER, UNI_POSITION_MANAGER
-    // );
-    // await uniAdapterWETH.waitForDeployment();
+    const uniAdapterWETH = await UniswapAdapterVault.deploy(
+        "Confidro UniV3 WETH Receipt", "cuWETH",
+        BASE_SEPOLIA_WETH, BASE_SEPOLIA_USDC, UNI_ROUTER, UNI_POSITION_MANAGER
+    );
+    await uniAdapterWETH.waitForDeployment();
 
-    // console.log(`Uni USDC Adapter: ${uniAdapterUSDC.target}`);
-    // console.log(`Uni WETH Adapter: ${uniAdapterWETH.target}`);
+    console.log(`Uni USDC Adapter: ${uniAdapterUSDC.target}`);
+    console.log(`Uni WETH Adapter: ${uniAdapterWETH.target}`);
 
-    // saveDeployment(network.name, 'UniAdapterUSDC', await uniAdapterUSDC.getAddress())
-    // saveDeployment(network.name, 'UniAdapterWETH', await uniAdapterWETH.getAddress())
-
-    // console.log("Deploying Uniswap Master Adapter...");
-    // const UniswapMasterAdapter = await ethers.getContractFactory('UniswapMasterAdapter');
-    // const uniMasterAdapter = await UniswapMasterAdapter.deploy(
-    //     BASE_SEPOLIA_USDC, BASE_SEPOLIA_WETH, uniAdapterUSDC.target, uniAdapterWETH.target
-    // );
-    // await uniMasterAdapter.waitForDeployment();
-    // console.log(`Uni Master Adapter: ${uniMasterAdapter.target}`);
+    console.log("Deploying Uniswap Master Adapter...");
+    const UniswapMasterAdapter = await ethers.getContractFactory('UniswapMasterAdapter');
+    const uniMasterAdapter = await UniswapMasterAdapter.deploy(
+        BASE_SEPOLIA_USDC, BASE_SEPOLIA_WETH, uniAdapterUSDC.target, uniAdapterWETH.target
+    );
+    await uniMasterAdapter.waitForDeployment();
+    console.log(`Uni Master Adapter: ${uniMasterAdapter.target}`);
     
-    // saveDeployment(network.name, 'UniswapMasterAdapter', await uniMasterAdapter.getAddress())
+    saveDeployment(network.name, 'UniswapMasterAdapter', await uniMasterAdapter.getAddress())
 
     // const COMP_CUSDCV3 = "0x571621Ce60Cebb0c1D442B5afb38B1663C6Bf017"; 
     // const COMP_CWETHV3 = "0x61490650AbaA31393464C3f34E8B29cd1C44118E";
@@ -103,13 +100,13 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
     console.log("Deploying FHE Wrappers for Uniswap, Compound, & Curve...");
     const FHERC20Wrapper = await ethers.getContractFactory('FHERC20Wrapper');
     
-    // const wrapperUniUSDC = await FHERC20Wrapper.deploy(uniAdapterUSDC.target, 6, false);
-    // await wrapperUniUSDC.waitForDeployment();
-    // const wrapperUniWETH = await FHERC20Wrapper.deploy(uniAdapterWETH.target, 18, true);
-    // await wrapperUniWETH.waitForDeployment();
+    const wrapperUniUSDC = await FHERC20Wrapper.deploy(uniAdapterUSDC.target, 6, false);
+    await wrapperUniUSDC.waitForDeployment();
+    const wrapperUniWETH = await FHERC20Wrapper.deploy(uniAdapterWETH.target, 18, true);
+    await wrapperUniWETH.waitForDeployment();
 
-    // saveDeployment(network.name, 'WrapperUniUSDC', await wrapperUniUSDC.getAddress())
-    // saveDeployment(network.name, 'WrapperUniWETH', await wrapperUniWETH.getAddress())
+    saveDeployment(network.name, 'WrapperUniUSDC', await wrapperUniUSDC.getAddress())
+    saveDeployment(network.name, 'WrapperUniWETH', await wrapperUniWETH.getAddress())
 
     // const wrapperCompUSDC = await FHERC20Wrapper.deploy(COMP_CUSDCV3, 6, false);
     // await wrapperCompUSDC.waitForDeployment();
@@ -160,11 +157,11 @@ task('deploy', 'Deploy the contracts').setAction(async (_, hre: HardhatRuntimeEn
         // WrapperAaveETH: wrapperAaveETH.target,
         // WrapperAaveUSDC: wrapperAaveUSDC.target,
 
-        // UniAdapterUSDC: uniAdapterUSDC.target,
-        // UniAdapterWETH: uniAdapterWETH.target,
-        // UniswapMasterAdapter: uniMasterAdapter.target,
-        // WrapperUniUSDC: wrapperUniUSDC.target,
-        // WrapperUniWETH: wrapperUniWETH.target,
+        UniAdapterUSDC: uniAdapterUSDC.target,
+        UniAdapterWETH: uniAdapterWETH.target,
+        UniswapMasterAdapter: uniMasterAdapter.target,
+        WrapperUniUSDC: wrapperUniUSDC.target,
+        WrapperUniWETH: wrapperUniWETH.target,
 
         // CompAdapter: compAdapter.target,
         // WrapperCompUSDC: wrapperCompUSDC.target,

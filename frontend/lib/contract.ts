@@ -3,17 +3,17 @@ import { AaveV3BaseSepolia } from "@aave-dao/aave-address-book";
 export const FACTORY_CONTRACT_ADDRESS = 
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`);
 
-export const CURVE_POOL_ADDRESS = "0xe51C6ebBd67bbcD3362b3cF3B2fd188B0cE1bB6D" as `0x${string}`;
-export const CURVE_WRAPPER_USDC = "0xadF414fea11C4c29ebD7797278D59C0C9EbA78dd" as `0x${string}`;
-export const CURVE_WRAPPER_ETH = "0x8172e6CAE74F8c48FEf25B4A3865c9A1AB098607" as `0x${string}`;
+export const CURVE_POOL_ADDRESS = "0x4C69A54C64e7Fd453cFF52D2BD9BA483cE990Bbc" as `0x${string}`;
+export const CURVE_WRAPPER_USDC = "0x122B60a9558FBdE3ea7a8522b48e8F191887ED0a" as `0x${string}`;
+export const CURVE_WRAPPER_ETH = "0x4d16a811D37F5ddcb3eD118D54Cb295eA62207aB" as `0x${string}`;
 
 export const COMP_POOL_ADDRESS = "0xb9CD99f55b1baF27C048898eAa3679D105Fe9e0B" as `0x${string}`;
 export const COMP_WRAPPER_USDC = "0xd80f4B7D30d43117AF82Ce57A955Ec77fF282b06" as `0x${string}`;
 export const COMP_WRAPPER_ETH = "0x4C0Cb8ABb5BD3ab83949c09b90b0D51448CbF2fB" as `0x${string}`;
 
-export const UNI_POOL_ADDRESS = "0x6e0e0052B050782658D16399Ffb46B770511F11D" as `0x${string}`;
-export const UNI_WRAPPER_USDC = "0x150D7169E690e67FDC69B4A8984d104f24e2602C" as `0x${string}`;
-export const UNI_WRAPPER_ETH = "0xA3307ac75175FE11B039e53463c74753B00E6ABa" as `0x${string}`;
+export const UNI_POOL_ADDRESS = "0x15422198D236DBC979786762387E947182Ae7a40" as `0x${string}`;
+export const UNI_WRAPPER_USDC = "0xdfcb0153Cf2bb1Ff4F9e452CFeCa36C23d5c4cDE" as `0x${string}`;
+export const UNI_WRAPPER_ETH = "0x8722754894f0b440428173a11470eFd616F51430" as `0x${string}`;
 
 export const AAVE_POOL_ADDRESS = AaveV3BaseSepolia.POOL as `0x${string}`;
 export const AAVE_WRAPPER_USDC = "0xD5fD5b3636984B286800954318475BC1aC1C2b3D" as `0x${string}`;

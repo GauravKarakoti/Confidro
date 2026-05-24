@@ -24,7 +24,7 @@ describe("ConfidroEscrow", function () {
     [owner, employer, employee1, employee2] = await ethers.getSigners();
     const ownerAddress = await owner.getAddress();
 
-    const MockERC20 = await ethers.getContractFactory("MockERC20");
+    const MockERC20 = await ethers.getContractFactory("contracts/mocks/EscrowMocks.sol:MockERC20");
     usdcMock = await MockERC20.deploy("Mock USDC", "USDC", 6);
     
     const MockWETH = await ethers.getContractFactory("MockWETH");
@@ -34,33 +34,48 @@ describe("ConfidroEscrow", function () {
     const aWethMock = await MockERC20.deploy("Mock aWETH", "aWETH", 18);
     const aUsdcMock = await MockERC20.deploy("Mock aUSDC", "aUSDC", 6);
 
-    // 2. Deploy Yield Mocks
+    // 2. Deploy Yield Mocks (using EscrowMocks versions to simulate Master Adapters)
     const MockAavePool = await ethers.getContractFactory("contracts/mocks/MockAavePool.sol:MockAavePool");
-    const MockGenericYieldPool = await ethers.getContractFactory("contracts/mocks/YieldMocks.sol:MockGenericYieldPool");
+    const MockGenericYieldPool = await ethers.getContractFactory("contracts/mocks/EscrowMocks.sol:MockGenericYieldPool");
     
     const aaveMock = await MockAavePool.deploy();
     
-    // For generic pools, the pool acts as its own receipt token in our mock setup
+    // In these tests, the Master Adapters are simulated by MockGenericYieldPools
     const compMock = await MockGenericYieldPool.deploy();
     const uniMock = await MockGenericYieldPool.deploy();
     const curveMock = await MockGenericYieldPool.deploy();
 
-    // 3. Initialize Aave Reserves to prevent revert
+    // Deploy simulated receipt tokens for the Master Adapters
+    const cWethMock = await MockERC20.deploy("Mock cWETH", "cWETH", 18);
+    const cUsdcMock = await MockERC20.deploy("Mock cUSDC", "cUSDC", 6);
+    const uWethMock = await MockERC20.deploy("Mock uWETH", "uWETH", 18);
+    const uUsdcMock = await MockERC20.deploy("Mock uUSDC", "uUSDC", 6);
+    const crvWethMock = await MockERC20.deploy("Mock crvWETH", "crvWETH", 18);
+    const crvUsdcMock = await MockERC20.deploy("Mock crvUSDC", "crvUSDC", 6);
+
+    // 3. Initialize Reserves so the mock pools mint the correct receipt token back to Escrow
     await aaveMock.initReserve(usdcMock.target, aUsdcMock.target);
     await aaveMock.initReserve(wethMock.target, aWethMock.target);
     
+    await compMock.initReserve(wethMock.target, cWethMock.target);
+    await compMock.initReserve(usdcMock.target, cUsdcMock.target);
+    await uniMock.initReserve(wethMock.target, uWethMock.target);
+    await uniMock.initReserve(usdcMock.target, uUsdcMock.target);
+    await curveMock.initReserve(wethMock.target, crvWethMock.target);
+    await curveMock.initReserve(usdcMock.target, crvUsdcMock.target);
+    
     yieldPools = [aaveMock.target, compMock.target, uniMock.target, curveMock.target];
 
-    // FIX: Define the actual Receipt Tokens that the Wrappers will wrap
-    const ethReceipts = [aWethMock.target, compMock.target, uniMock.target, curveMock.target];
-    const usdcReceipts = [aUsdcMock.target, compMock.target, uniMock.target, curveMock.target];
+    // FIX: Define the actual Receipt Tokens that the Wrappers will wrap dynamically
+    const ethReceipts = [aWethMock.target, cWethMock.target, uWethMock.target, crvWethMock.target];
+    const usdcReceipts = [aUsdcMock.target, cUsdcMock.target, uUsdcMock.target, crvUsdcMock.target];
 
     const MockFHEWrapper = await ethers.getContractFactory("MockFHEWrapper");
     
     ethWrappers = [];
     usdcWrappers = [];
     for (let i = 0; i < 4; i++) {
-        // Pass the Receipt Token to the FHE Wrapper, NOT the pool!
+        // Pass the Receipt Token to the FHE Wrapper
         const fEth = await MockFHEWrapper.deploy(ethReceipts[i]);
         const fUsdc = await MockFHEWrapper.deploy(usdcReceipts[i]);
         
@@ -99,13 +114,14 @@ describe("ConfidroEscrow", function () {
     expect(Number(decryptedUSDC)).to.equal(0);
   });
 
-  it("Should handle USDC deposits natively and distribute them across 4 pools", async function () {
+  it("Should handle USDC deposits natively and distribute them across 4 pools via balance measurement", async function () {
     const depositAmount = ethers.parseUnits("100", 6);
     const employerAddress = await employer.getAddress();
 
     await usdcMock.mint(employerAddress, depositAmount);
     await usdcMock.connect(employer).approve(escrow.target, depositAmount);
 
+    // This will now successfully evaluate the dynamic balance measurements in Escrow
     await expect(escrow.connect(employer).depositTokens(depositAmount, 1))
       .not.to.be.reverted;
   });
